@@ -20,7 +20,7 @@ export function AuthPage() {
     event.preventDefault();
 
     if (!supabase) {
-      setErrorMessage('Supabase environment variables are missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local.');
+      setErrorMessage('Supabase environment variables are missing. Add your real VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY values to .env.local, then restart the dev server.');
       return;
     }
 

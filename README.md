@@ -27,8 +27,9 @@ This repository now includes the foundational Supabase authentication flow from 
 
 ## Environment Setup
 
-1. Keep your private local values in `.env.local`.
-2. Use `.env.example` as the template for required variables.
+1. Open `.env.local` (committed as a placeholder template) and paste your real Supabase values.
+2. `.env.example` contains the same required keys for quick reference.
+3. Restart `npm run dev` after changing env values.
 
 Required variables:
 
