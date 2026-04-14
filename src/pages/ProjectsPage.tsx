@@ -35,6 +35,10 @@ function mapProjectsError(message: string): string {
     return 'Projects table is missing in Supabase. Run supabase/migrations/20260414_create_projects.sql in the SQL editor, then refresh.';
   }
 
+  if (message.toLowerCase().includes('row-level security')) {
+    return 'Project creation was blocked by RLS. Confirm all migrations are applied (including project_members), then sign out and sign in again.';
+  }
+
   return message;
 }
 

@@ -11,6 +11,7 @@ This repository now includes the Phase 2 foundation from the roadmap:
 - User profile provisioning into `profiles` with default admin access
 - Protected app shell with Projects and Dashboard sections
 - Project list and create form connected to Supabase
+- Project membership model (`project_members`) for project-scoped permissions
 - Centralized Supabase client bootstrap (`src/lib/supabase.ts`)
 
 ## Tech Stack
@@ -39,12 +40,18 @@ VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
-## Database Setup
+## Database Setup (Supabase)
 
-Run the SQL migrations below in the Supabase SQL editor:
+Run the SQL migrations below in order using the Supabase SQL editor:
 
-1. `supabase/migrations/20260414_create_profiles.sql` (user profile + access level)
-2. `supabase/migrations/20260414_create_projects.sql` (Phase 2 projects table + policies)
+1. `supabase/migrations/20260414_create_profiles.sql`
+2. `supabase/migrations/20260414_create_projects.sql`
+3. `supabase/migrations/20260414_create_project_members.sql`
+
+After applying migrations:
+- sign out/sign in once so profile provisioning runs,
+- open the Projects page,
+- create a project and confirm it appears in the project list.
 
 ## Run Locally
 
@@ -73,6 +80,6 @@ npm run build
 
 ## Suggested Next Stage
 
-- Continue refining project detail and membership assignment flows
-- Connect project CRUD to Supabase tables
-- Introduce role-aware project access policies
+- Add project detail page and project member management UI
+- Connect budget items to project-scoped membership checks
+- Harden role transitions and audit logging
