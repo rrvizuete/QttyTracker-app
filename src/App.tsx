@@ -4,10 +4,11 @@ import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { AuthPage } from './features/auth/AuthPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { BudgetPage } from './pages/BudgetPage';
 import { provisionUserProfile } from './lib/profile';
 import { supabase } from './lib/supabase';
 
-type AppSection = 'dashboard' | 'projects';
+type AppSection = 'dashboard' | 'projects' | 'budget';
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -67,7 +68,9 @@ export function App() {
       }}
       userEmail={userEmail}
     >
-      {activeSection === 'dashboard' ? <DashboardPage /> : <ProjectsPage session={session} />}
+      {activeSection === 'dashboard' ? <DashboardPage /> : null}
+      {activeSection === 'projects' ? <ProjectsPage session={session} /> : null}
+      {activeSection === 'budget' ? <BudgetPage session={session} /> : null}
     </AppShell>
   );
 }
