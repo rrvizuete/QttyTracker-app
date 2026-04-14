@@ -31,26 +31,30 @@ before update on public.projects
 for each row
 execute function public.handle_projects_updated_at();
 
-create policy if not exists "Authenticated users can read projects"
+drop policy if exists "Authenticated users can read projects" on public.projects;
+create policy "Authenticated users can read projects"
 on public.projects
 for select
 to authenticated
 using (true);
 
-create policy if not exists "Authenticated users can insert projects"
+drop policy if exists "Authenticated users can insert projects" on public.projects;
+create policy "Authenticated users can insert projects"
 on public.projects
 for insert
 to authenticated
 with check (true);
 
-create policy if not exists "Authenticated users can update projects"
+drop policy if exists "Authenticated users can update projects" on public.projects;
+create policy "Authenticated users can update projects"
 on public.projects
 for update
 to authenticated
 using (true)
 with check (true);
 
-create policy if not exists "Authenticated users can delete projects"
+drop policy if exists "Authenticated users can delete projects" on public.projects;
+create policy "Authenticated users can delete projects"
 on public.projects
 for delete
 to authenticated

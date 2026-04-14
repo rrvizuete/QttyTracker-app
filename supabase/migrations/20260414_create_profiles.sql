@@ -26,17 +26,20 @@ before update on public.profiles
 for each row
 execute function public.handle_updated_at();
 
-create policy if not exists "Users can read their own profile"
+drop policy if exists "Users can read their own profile" on public.profiles;
+create policy "Users can read their own profile"
 on public.profiles
 for select
 using (auth.uid() = id);
 
-create policy if not exists "Users can insert their own profile"
+drop policy if exists "Users can insert their own profile" on public.profiles;
+create policy "Users can insert their own profile"
 on public.profiles
 for insert
 with check (auth.uid() = id);
 
-create policy if not exists "Users can update their own profile"
+drop policy if exists "Users can update their own profile" on public.profiles;
+create policy "Users can update their own profile"
 on public.profiles
 for update
 using (auth.uid() = id)
