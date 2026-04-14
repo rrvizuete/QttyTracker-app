@@ -4,12 +4,13 @@ Prototype of a construction budget and progress tracking web app built with Reac
 
 ## Stage 3 – Phase 2 Projects (Current)
 
-This repository now includes the foundational Supabase authentication flow from the roadmap:
+This repository now includes the Phase 2 foundation from the roadmap:
 
 - Sign in / sign up UI with controlled forms
 - Session bootstrapping on app load
-- Auth state subscription and sign-out action
-- Protected app shell (dashboard only renders for authenticated users)
+- User profile provisioning into `profiles` with default admin access
+- Protected app shell with Projects and Dashboard sections
+- Project list and create form connected to Supabase
 - Centralized Supabase client bootstrap (`src/lib/supabase.ts`)
 
 ## Tech Stack
@@ -37,6 +38,12 @@ Required variables:
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
+
+## Database Setup
+
+Run the SQL migration below in the Supabase SQL editor to create the `profiles` table used for access-level provisioning:
+
+- `supabase/migrations/20260414_create_profiles.sql`
 
 ## Run Locally
 

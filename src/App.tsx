@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { AuthPage } from './features/auth/AuthPage';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { provisionUserProfile } from './lib/profile';
 import { supabase } from './lib/supabase';
 
 type AppSection = 'dashboard' | 'projects';
@@ -21,13 +22,22 @@ export function App() {
 
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!isMounted) return;
+
+      if (data.session) {
+        await provisionUserProfile(data.session);
+      }
+
       setSession(data.session);
       setIsAuthLoading(false);
     });
 
     const { data } = supabase.auth.onAuthStateChange((_event, activeSession) => {
+      if (activeSession) {
+        void provisionUserProfile(activeSession);
+      }
+
       setSession(activeSession);
       setIsAuthLoading(false);
     });

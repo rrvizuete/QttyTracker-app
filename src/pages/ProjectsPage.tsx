@@ -35,10 +35,10 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [role, setRole] = useState('viewer');
+  const [accessLevel, setAccessLevel] = useState('admin');
   const [formState, setFormState] = useState<ProjectFormState>(initialFormState);
 
-  const isAdmin = useMemo(() => role === 'admin', [role]);
+  const isAdmin = useMemo(() => accessLevel === 'admin', [accessLevel]);
 
   useEffect(() => {
     let isActive = true;
@@ -55,15 +55,10 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
       setIsLoading(true);
       setErrorMessage(null);
 
-      const metadataRole = session.user.user_metadata?.role;
-      if (typeof metadataRole === 'string' && metadataRole.length > 0) {
-        setRole(metadataRole);
-      }
+      const profileResponse = await supabase.from('profiles').select('access_level').eq('id', session.user.id).maybeSingle();
 
-      const profileResponse = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle();
-
-      if (!profileResponse.error && profileResponse.data?.role) {
-        setRole(profileResponse.data.role);
+      if (!profileResponse.error && profileResponse.data?.access_level) {
+        setAccessLevel(profileResponse.data.access_level);
       }
 
       const projectsResponse = await supabase
@@ -91,7 +86,7 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
     return () => {
       isActive = false;
     };
-  }, [session.user.id, session.user.user_metadata]);
+  }, [session.user.id]);
 
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,13 +135,13 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
       <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <Card>
           <h2 className="text-lg font-semibold text-slate-900">Create Project</h2>
-          <p className="mt-1 text-sm text-slate-500">Only admins can create new projects.</p>
+          <p className="mt-1 text-sm text-slate-500">All test users are currently provisioned with admin access.</p>
           <p className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            Current role: {role}
+            Current access: {accessLevel}
           </p>
 
           {!isAdmin ? (
-            <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">You need an admin role to create projects.</p>
+            <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">Access level is being provisioned. Refresh in a moment if this persists.</p>
           ) : (
             <form className="mt-4 space-y-4" onSubmit={handleCreateProject}>
               <Input
