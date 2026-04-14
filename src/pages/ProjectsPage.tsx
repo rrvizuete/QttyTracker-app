@@ -29,6 +29,15 @@ const initialFormState: ProjectFormState = {
   status: 'active',
 };
 
+
+function mapProjectsError(message: string): string {
+  if (message.includes("public.projects") && message.includes('schema cache')) {
+    return 'Projects table is missing in Supabase. Run supabase/migrations/20260414_create_projects.sql in the SQL editor, then refresh.';
+  }
+
+  return message;
+}
+
 export function ProjectsPage({ session }: ProjectsPageProps) {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -71,7 +80,7 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
       }
 
       if (projectsResponse.error) {
-        setErrorMessage(projectsResponse.error.message);
+        setErrorMessage(mapProjectsError(projectsResponse.error.message));
         setProjects([]);
         setIsLoading(false);
         return;
@@ -116,7 +125,7 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
     setIsSubmitting(false);
 
     if (response.error) {
-      setErrorMessage(response.error.message);
+      setErrorMessage(mapProjectsError(response.error.message));
       return;
     }
 

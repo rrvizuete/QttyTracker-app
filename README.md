@@ -41,9 +41,10 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 
 ## Database Setup
 
-Run the SQL migration below in the Supabase SQL editor to create the `profiles` table used for access-level provisioning:
+Run the SQL migrations below in the Supabase SQL editor:
 
-- `supabase/migrations/20260414_create_profiles.sql`
+1. `supabase/migrations/20260414_create_profiles.sql` (user profile + access level)
+2. `supabase/migrations/20260414_create_projects.sql` (Phase 2 projects table + policies)
 
 ## Run Locally
 
