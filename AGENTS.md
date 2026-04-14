@@ -147,6 +147,13 @@ Prioritize:
 - responsive layout
 - useful empty states
 
+## UI Reference Rules
+- Use the images in `/docs/ui-reference` as the visual reference (not all the cards in the example apply to this app)
+- Follow `UI_GUIDE.md` for layout and component styling
+- Match the overall feel of the reference app without copying it exactly
+- Prioritize consistency, readability, and a professional enterprise look
+- Reuse shared UI components wherever possible
+
 ## Testing Expectations
 Before completing a task:
 - verify builds pass
