@@ -1,15 +1,17 @@
-# QttyTracker App
+# Quantities Manager
 
 Prototype of a construction budget and progress tracking web app built with React, TypeScript, Tailwind CSS, and Supabase.
 
-## Stage 2 – Auth Foundation (Current)
+## Stage 3 – Phase 2 Projects (Current)
 
-This repository now includes the foundational Supabase authentication flow from the roadmap:
+This repository now includes the Phase 2 foundation from the roadmap:
 
 - Sign in / sign up UI with controlled forms
 - Session bootstrapping on app load
-- Auth state subscription and sign-out action
-- Protected app shell (dashboard only renders for authenticated users)
+- User profile provisioning into `profiles` with default admin access
+- Protected app shell with Projects and Dashboard sections
+- Project list and create form connected to Supabase
+- Project membership model (`project_members`) for project-scoped permissions
 - Centralized Supabase client bootstrap (`src/lib/supabase.ts`)
 
 ## Tech Stack
@@ -38,6 +40,19 @@ VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
+## Database Setup (Supabase)
+
+Run the SQL migrations below in order using the Supabase SQL editor:
+
+1. `supabase/migrations/20260414_create_profiles.sql`
+2. `supabase/migrations/20260414_create_projects.sql`
+3. `supabase/migrations/20260414_create_project_members.sql`
+
+After applying migrations:
+- sign out/sign in once so profile provisioning runs,
+- open the Projects page,
+- create a project and confirm it appears in the project list.
+
 ## Run Locally
 
 ```bash
@@ -65,6 +80,6 @@ npm run build
 
 ## Suggested Next Stage
 
-- Build Phase 2 project management pages (list/create/detail)
-- Connect project CRUD to Supabase tables
-- Introduce role-aware project access policies
+- Add project detail page and project member management UI
+- Connect budget items to project-scoped membership checks
+- Harden role transitions and audit logging

@@ -14,7 +14,7 @@ export function AuthPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
-  const title = useMemo(() => (mode === 'signin' ? 'Sign in to QttyTracker' : 'Create your account'), [mode]);
+  const title = useMemo(() => (mode === 'signin' ? 'Sign in to Quantities Manager' : 'Create your account'), [mode]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -58,8 +58,8 @@ export function AuthPage() {
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-10 text-slate-900">
       <div className="mx-auto w-full max-w-md">
-        <p className="text-center text-xs uppercase tracking-[0.18em] text-slate-500">QttyTracker</p>
-        <h1 className="mt-2 text-center text-2xl font-semibold">Construction Operations</h1>
+        <p className="text-center text-xs uppercase tracking-[0.18em] text-slate-500">Quantities Manager</p>
+        <h1 className="mt-2 text-center text-2xl font-semibold">Construction Project Quantities</h1>
 
         <Card className="mt-6">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>

@@ -7,11 +7,10 @@ Goal: Working skeleton deployed
 - Add Tailwind CSS
 - Setup Supabase client
 - Setup environment variables
-- Deploy to Vercel
 - Create basic layout (navbar + pages)
 
 DONE when:
-- App runs locally and on Vercel
+- App runs locally
 - Supabase connection works
 
 ## Phase 1 – Project Setup
