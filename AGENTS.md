@@ -73,6 +73,14 @@ Build a React + Tailwind + Supabase application with:
 - Validate assumptions before writes
 - Handle loading, error, and empty states clearly
 
+### SQL Rules
+- Use PostgreSQL-compatible syntax only
+- Do NOT use "create policy if not exists"
+- Always use:
+  drop policy if exists ...
+  create policy ...
+- All migrations must run without errors in Supabase
+
 ## Folder Guidance
 A suggested structure:
 
