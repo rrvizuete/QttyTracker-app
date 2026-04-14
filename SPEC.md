@@ -107,7 +107,7 @@ Provide dashboards at project level showing at least:
 - Database: PostgreSQL via Supabase
 - Authentication: Supabase Auth
 - Authorization: Row Level Security (RLS)
-- Deployment: Vercel
+- Deployment: On hold during current phase (local-first)
 
 ## Suggested Data Model
 Main entities:

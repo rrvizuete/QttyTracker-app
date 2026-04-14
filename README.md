@@ -1,8 +1,8 @@
-# QttyTracker App
+# Quantities Manager
 
 Prototype of a construction budget and progress tracking web app built with React, TypeScript, Tailwind CSS, and Supabase.
 
-## Stage 2 – Auth Foundation (Current)
+## Stage 3 – Phase 2 Projects (Current)
 
 This repository now includes the foundational Supabase authentication flow from the roadmap:
 
@@ -65,6 +65,6 @@ npm run build
 
 ## Suggested Next Stage
 
-- Build Phase 2 project management pages (list/create/detail)
+- Continue refining project detail and membership assignment flows
 - Connect project CRUD to Supabase tables
 - Introduce role-aware project access policies

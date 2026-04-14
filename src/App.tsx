@@ -3,11 +3,15 @@ import type { Session } from '@supabase/supabase-js';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './pages/DashboardPage';
 import { AuthPage } from './features/auth/AuthPage';
+import { ProjectsPage } from './pages/ProjectsPage';
 import { supabase } from './lib/supabase';
+
+type AppSection = 'dashboard' | 'projects';
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [activeSection, setActiveSection] = useState<AppSection>('projects');
 
   useEffect(() => {
     if (!supabase) {
@@ -46,12 +50,14 @@ export function App() {
 
   return (
     <AppShell
+      activeSection={activeSection}
+      onNavigate={setActiveSection}
       onSignOut={() => {
         void supabase?.auth.signOut();
       }}
       userEmail={userEmail}
     >
-      <DashboardPage />
+      {activeSection === 'dashboard' ? <DashboardPage /> : <ProjectsPage session={session} />}
     </AppShell>
   );
 }
