@@ -2,16 +2,14 @@
 
 Prototype of a construction budget and progress tracking web app built with React, TypeScript, Tailwind CSS, and Supabase.
 
-## Stage 1 Scaffold (Current)
+## Stage 2 – Auth Foundation (Current)
 
-This repository now includes a reusable base application shell and styling system inspired by the UI references in `docs/ui-reference` and the rules in `docs/UI_GUIDE.md`:
+This repository now includes the foundational Supabase authentication flow from the roadmap:
 
-- Sidebar navigation shell
-- Top header with project context/actions
-- Reusable KPI dashboard card style
-- Reusable table style for budget/progress data
-- Reusable form input and button styles
-- Shared spacing + typography system
+- Sign in / sign up UI with controlled forms
+- Session bootstrapping on app load
+- Auth state subscription and sign-out action
+- Protected app shell (dashboard only renders for authenticated users)
 - Centralized Supabase client bootstrap (`src/lib/supabase.ts`)
 
 ## Tech Stack
@@ -29,13 +27,11 @@ This repository now includes a reusable base application shell and styling syste
 
 ## Environment Setup
 
-1. Copy and edit environment values:
+1. Open `.env.local` (committed as a placeholder template) and paste your real Supabase values.
+2. `.env.example` contains the same required keys for quick reference.
+3. Restart `npm run dev` after changing env values.
 
-```bash
-cp .env.example .env
-```
-
-2. Set your Supabase project values in `.env`:
+Required variables:
 
 ```env
 VITE_SUPABASE_URL=https://<your-project-ref>.supabase.co
@@ -51,12 +47,9 @@ npm run dev
 
 Then open the local URL shown by Vite (usually `http://localhost:5173`).
 
-## Test/Validation Commands (Testing Environment)
-
-Use these commands in CI or a test environment to validate the scaffold:
+## Test/Validation Commands
 
 ```bash
-npm install
 npm run lint
 npm run test
 npm run build
@@ -72,6 +65,6 @@ npm run build
 
 ## Suggested Next Stage
 
-- Add Supabase Auth flows (login/signup/session handling)
-- Add route protection and role-aware layout behavior
-- Connect dashboard widgets to real project-level queries
+- Build Phase 2 project management pages (list/create/detail)
+- Connect project CRUD to Supabase tables
+- Introduce role-aware project access policies
