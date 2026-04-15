@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -229,6 +229,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const editorRowRef = useRef<HTMLTableRowElement | null>(null);
+  const editorCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const activeEditorKey = editorState ? `${editorState.mode}:${editorState.rowId ?? 'new'}:${editorState.parentId}` : null;
 
   const budgetRows = useMemo(() => {
     const rolled = buildRollups(budgetItems);
@@ -320,6 +323,15 @@ export function BudgetPage({ session }: BudgetPageProps) {
   useEffect(() => {
     void fetchBudgetItems(selectedProjectId);
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (!activeEditorKey) {
+      return;
+    }
+
+    editorRowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    editorCodeInputRef.current?.focus();
+  }, [activeEditorKey]);
 
   function startCreate(kind: LineKind, parentId: string | null) {
     const parent = parentId ? budgetItems.find((item) => item.id === parentId) : null;
@@ -487,26 +499,27 @@ export function BudgetPage({ session }: BudgetPageProps) {
     }
 
     return (
-      <tr className="border-b border-brand-100 bg-brand-50/70" key={rowKey}>
-        <td className="py-2 pr-3 align-top">
+      <tr className="border-b border-brand-100 bg-brand-50/70" key={rowKey} ref={editorRowRef}>
+        <td className="py-1.5 pr-3 align-middle">
           <input
-            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            ref={editorCodeInputRef}
             onChange={(event) => setEditorState((current) => (current ? { ...current, code: event.target.value } : current))}
             placeholder="Code"
             value={editorState.code}
           />
         </td>
-        <td className="py-2 pr-3 align-top" style={{ paddingLeft: `${(editorState.level - 1) * 24 + 4}px` }}>
+        <td className="py-1.5 pr-3 align-middle" style={{ paddingLeft: `${(editorState.level - 1) * 24 + 4}px` }}>
           <input
-            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="h-8 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             onChange={(event) => setEditorState((current) => (current ? { ...current, description: event.target.value } : current))}
             placeholder="Description"
             value={editorState.description}
           />
         </td>
-        <td className="py-2 pr-3 align-top">
+        <td className="py-1.5 pr-3 align-middle">
           <input
-            className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="h-8 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             min="0"
             onChange={(event) => setEditorState((current) => (current ? { ...current, quantity: event.target.value } : current))}
             step="0.001"
@@ -514,9 +527,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
             value={editorState.quantity}
           />
         </td>
-        <td className="py-2 pr-3 align-top">
+        <td className="py-1.5 pr-3 align-middle">
           <select
-            className="h-9 w-36 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="h-8 w-36 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             onChange={(event) => setEditorState((current) => (current ? { ...current, uom: event.target.value } : current))}
             value={editorState.uom}
           >
@@ -528,9 +541,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
             ))}
           </select>
         </td>
-        <td className="py-2 pr-3 align-top">
+        <td className="py-1.5 pr-3 align-middle">
           <input
-            className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            className="h-8 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             min="0"
             onChange={(event) => setEditorState((current) => (current ? { ...current, rate: event.target.value } : current))}
             step="0.01"
@@ -538,15 +551,15 @@ export function BudgetPage({ session }: BudgetPageProps) {
             value={editorState.rate}
           />
         </td>
-        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
-        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
-        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
-        <td className="py-2 align-top">
-          <div className="flex flex-wrap gap-1">
-            <Button className="px-2 py-1 text-xs" disabled={isSaving} onClick={saveEditor} type="button">
+        <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-1.5 align-middle whitespace-nowrap">
+          <div className="flex flex-nowrap items-center gap-1">
+            <Button className="shrink-0 px-2 py-1 text-xs" disabled={isSaving} onClick={saveEditor} type="button">
               {isSaving ? 'Saving…' : 'Save'}
             </Button>
-            <Button className="px-2 py-1 text-xs" onClick={() => setEditorState(null)} type="button" variant="ghost">
+            <Button className="shrink-0 px-2 py-1 text-xs" onClick={() => setEditorState(null)} type="button" variant="ghost">
               Cancel
             </Button>
           </div>
@@ -602,13 +615,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
         {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading budget module…</p> : null}
 
-        {!isLoading && budgetRows.length === 0 ? (
+        {!isLoading && budgetRows.length === 0 && !(editorState?.mode === 'create' && editorState.parentId === '') ? (
           <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
             No budget entries yet. Add a section or position, then use row buttons to add nested levels.
           </p>
         ) : null}
 
-        {!isLoading && budgetRows.length > 0 ? (
+        {!isLoading && (budgetRows.length > 0 || (editorState?.mode === 'create' && editorState.parentId === '')) ? (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
@@ -642,25 +655,30 @@ export function BudgetPage({ session }: BudgetPageProps) {
                         <td className="py-3 pr-3 text-slate-700">{toCurrency(item.item_value)}</td>
                         <td className="py-3 pr-3 text-slate-700">{toNumber(item.rolledQuantity)}</td>
                         <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
-                        <td className="py-3">
-                          <div className="flex flex-wrap gap-1">
-                            <Button onClick={() => startEdit(item)} className="px-2 py-1 text-xs" type="button" variant="ghost">
+                        <td className="py-3 whitespace-nowrap">
+                          <div className="flex flex-nowrap items-center gap-1">
+                            <Button onClick={() => startEdit(item)} className="shrink-0 px-2 py-1 text-xs" type="button" variant="ghost">
                               Edit
                             </Button>
                             <Button
                               disabled={item.level >= 8}
                               onClick={() => startCreate('section', item.id)}
-                              className="px-2 py-1 text-xs"
+                              className="shrink-0 px-2 py-1 text-xs"
                               type="button"
                               variant="secondary"
                             >
                               + Section
                             </Button>
-                            <Button disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} className="px-2 py-1 text-xs" type="button">
+                            <Button
+                              disabled={item.level >= 8}
+                              onClick={() => startCreate('position', item.id)}
+                              className="shrink-0 px-2 py-1 text-xs"
+                              type="button"
+                            >
                               + Position
                             </Button>
                             <Button
-                              className="px-2 py-1 text-xs"
+                              className="shrink-0 px-2 py-1 text-xs"
                               disabled={deletingItemId === item.id}
                               onClick={() => handleDelete(item)}
                               type="button"
