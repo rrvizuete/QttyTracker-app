@@ -152,6 +152,40 @@ function buildRollups(items: BudgetItemRecord[]): RollupRow[] {
   });
 }
 
+function sortByHierarchy(items: RollupRow[]): RollupRow[] {
+  const roots = items.filter((item) => !item.parent_id).sort((a, b) => a.code.localeCompare(b.code));
+  const childrenByParent = new Map<string, RollupRow[]>();
+
+  items.forEach((item) => {
+    if (!item.parent_id) {
+      return;
+    }
+
+    const list = childrenByParent.get(item.parent_id) ?? [];
+    list.push(item);
+    childrenByParent.set(item.parent_id, list);
+  });
+
+  for (const [key, children] of childrenByParent.entries()) {
+    childrenByParent.set(
+      key,
+      [...children].sort((a, b) => a.code.localeCompare(b.code)),
+    );
+  }
+
+  const ordered: RollupRow[] = [];
+
+  function visit(node: RollupRow) {
+    ordered.push(node);
+
+    const children = childrenByParent.get(node.id) ?? [];
+    children.forEach((child) => visit(child));
+  }
+
+  roots.forEach((root) => visit(root));
+  return ordered;
+}
+
 function makeEditorState(params: {
   mode: EditorMode;
   kind: LineKind;
@@ -204,7 +238,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
   const budgetRows = useMemo(() => {
     const rolled = buildRollups(budgetItems);
-    return [...rolled].sort((a, b) => a.code.localeCompare(b.code));
+    return sortByHierarchy(rolled);
   }, [budgetItems]);
 
   useEffect(() => {
@@ -566,7 +600,6 @@ export function BudgetPage({ session }: BudgetPageProps) {
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Code</th>
                   <th className="py-2 pr-3">Description</th>
-                  <th className="py-2 pr-3">Level</th>
                   <th className="py-2 pr-3">Qty</th>
                   <th className="py-2 pr-3">UoM</th>
                   <th className="py-2 pr-3">Rate</th>
@@ -581,7 +614,6 @@ export function BudgetPage({ session }: BudgetPageProps) {
                   <tr className="border-b border-slate-100" key={item.id}>
                     <td className="py-3 pr-3 font-medium text-slate-800">{item.code}</td>
                     <td className={`py-3 pr-3 text-slate-600 ${levelIndentClass[item.level]}`}>{item.description}</td>
-                    <td className="py-3 pr-3 text-slate-600">L{item.level}</td>
                     <td className="py-3 pr-3 text-slate-600">{toNumber(item.quantity)}</td>
                     <td className="py-3 pr-3 text-slate-600">{item.uom}</td>
                     <td className="py-3 pr-3 text-slate-600">{toCurrency(item.rate)}</td>
