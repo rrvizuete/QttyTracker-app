@@ -614,13 +614,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
         {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading budget module…</p> : null}
 
-        {!isLoading && budgetRows.length === 0 ? (
+        {!isLoading && budgetRows.length === 0 && !(editorState?.mode === 'create' && editorState.parentId === '') ? (
           <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
             No budget entries yet. Add a section or position, then use row buttons to add nested levels.
           </p>
         ) : null}
 
-        {!isLoading && budgetRows.length > 0 ? (
+        {!isLoading && (budgetRows.length > 0 || (editorState?.mode === 'create' && editorState.parentId === '')) ? (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
