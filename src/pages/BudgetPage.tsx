@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -51,17 +51,6 @@ interface EditorState {
   uom: string;
   rate: string;
 }
-
-const levelIndentClass: Record<number, string> = {
-  1: 'pl-1',
-  2: 'pl-2',
-  3: 'pl-4',
-  4: 'pl-6',
-  5: 'pl-8',
-  6: 'pl-10',
-  7: 'pl-12',
-  8: 'pl-14',
-};
 
 function toCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
@@ -232,6 +221,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [units, setUnits] = useState<UnitOption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
@@ -297,44 +287,34 @@ export function BudgetPage({ session }: BudgetPageProps) {
     };
   }, [session.user.id]);
 
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadBudgetItems() {
-      if (!supabase || !selectedProjectId) {
-        setBudgetItems([]);
-        setEditorState(null);
-        return;
-      }
-
-      setErrorMessage(null);
-
-      const response = await supabase
-        .from('budget_items')
-        .select('id,project_id,parent_id,code,description,level,quantity,uom,rate,item_value')
-        .eq('project_id', selectedProjectId)
-        .order('level')
-        .order('code');
-
-      if (!isActive) {
-        return;
-      }
-
-      if (response.error) {
-        setBudgetItems([]);
-        setErrorMessage(mapBudgetError(response.error.message));
-        return;
-      }
-
-      setBudgetItems(response.data ?? []);
+  async function fetchBudgetItems(projectId: string) {
+    if (!supabase || !projectId) {
+      setBudgetItems([]);
       setEditorState(null);
+      return;
     }
 
-    void loadBudgetItems();
+    setErrorMessage(null);
 
-    return () => {
-      isActive = false;
-    };
+    const response = await supabase
+      .from('budget_items')
+      .select('id,project_id,parent_id,code,description,level,quantity,uom,rate,item_value')
+      .eq('project_id', projectId)
+      .order('level')
+      .order('code');
+
+    if (response.error) {
+      setBudgetItems([]);
+      setErrorMessage(mapBudgetError(response.error.message));
+      return;
+    }
+
+    setBudgetItems(response.data ?? []);
+    setEditorState(null);
+  }
+
+  useEffect(() => {
+    void fetchBudgetItems(selectedProjectId);
   }, [selectedProjectId]);
 
   function startCreate(kind: LineKind, parentId: string | null) {
@@ -453,7 +433,106 @@ export function BudgetPage({ session }: BudgetPageProps) {
     setSuccessMessage('Budget line updated successfully.');
   }
 
-  const editorParent = editorState?.parentId ? budgetItems.find((item) => item.id === editorState.parentId) : null;
+  async function handleDelete(item: BudgetItemRecord) {
+    if (!supabase) {
+      return;
+    }
+
+    const confirmation = window.confirm(`Delete "${item.code} - ${item.description}" and all nested lines?`);
+    if (!confirmation) {
+      return;
+    }
+
+    setDeletingItemId(item.id);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const response = await supabase.from('budget_items').delete().eq('id', item.id);
+
+    setDeletingItemId(null);
+
+    if (response.error) {
+      setErrorMessage(mapBudgetError(response.error.message));
+      return;
+    }
+
+    await fetchBudgetItems(selectedProjectId);
+    setSuccessMessage('Budget line deleted successfully.');
+  }
+
+  function renderInlineEditorRow(rowKey: string) {
+    if (!editorState) {
+      return null;
+    }
+
+    return (
+      <tr className="border-b border-brand-100 bg-brand-50/70" key={rowKey}>
+        <td className="py-2 pr-3 align-top">
+          <input
+            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            onChange={(event) => setEditorState((current) => (current ? { ...current, code: event.target.value } : current))}
+            placeholder="Code"
+            value={editorState.code}
+          />
+        </td>
+        <td className="py-2 pr-3 align-top" style={{ paddingLeft: `${(editorState.level - 1) * 24 + 4}px` }}>
+          <input
+            className="h-9 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            onChange={(event) => setEditorState((current) => (current ? { ...current, description: event.target.value } : current))}
+            placeholder="Description"
+            value={editorState.description}
+          />
+        </td>
+        <td className="py-2 pr-3 align-top">
+          <input
+            className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            min="0"
+            onChange={(event) => setEditorState((current) => (current ? { ...current, quantity: event.target.value } : current))}
+            step="0.001"
+            type="number"
+            value={editorState.quantity}
+          />
+        </td>
+        <td className="py-2 pr-3 align-top">
+          <select
+            className="h-9 w-36 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            onChange={(event) => setEditorState((current) => (current ? { ...current, uom: event.target.value } : current))}
+            value={editorState.uom}
+          >
+            <option value="">Select unit</option>
+            {units.map((unit) => (
+              <option key={unit.code} value={unit.code}>
+                {unit.label}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="py-2 pr-3 align-top">
+          <input
+            className="h-9 w-24 rounded-lg border border-slate-300 bg-white px-2 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            min="0"
+            onChange={(event) => setEditorState((current) => (current ? { ...current, rate: event.target.value } : current))}
+            step="0.01"
+            type="number"
+            value={editorState.rate}
+          />
+        </td>
+        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-2 pr-3 text-sm text-slate-500">—</td>
+        <td className="py-2 align-top">
+          <div className="flex flex-wrap gap-1">
+            <Button className="px-2 py-1 text-xs" disabled={isSaving} onClick={saveEditor} type="button">
+              {isSaving ? 'Saving…' : 'Save'}
+            </Button>
+            <Button className="px-2 py-1 text-xs" onClick={() => setEditorState(null)} type="button" variant="ghost">
+              Cancel
+            </Button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -497,91 +576,6 @@ export function BudgetPage({ session }: BudgetPageProps) {
           </div>
         </div>
 
-        {editorState ? (
-          <div className="mt-4 rounded-lg border border-brand-200 bg-brand-50 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium text-brand-700">
-                {editorState.mode === 'create' ? `New ${editorState.kind}` : 'Edit line'} · Level {editorState.level}
-              </p>
-              <Button onClick={() => setEditorState(null)} type="button" variant="ghost">
-                Cancel
-              </Button>
-            </div>
-            <p className="mt-1 text-xs text-brand-700/90">
-              Parent: {editorParent ? `${editorParent.code} — ${editorParent.description}` : 'Top-level'}
-            </p>
-
-            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-                <span>Code</span>
-                <input
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  onChange={(event) => setEditorState((current) => (current ? { ...current, code: event.target.value } : current))}
-                  value={editorState.code}
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-slate-600 xl:col-span-2">
-                <span>Description</span>
-                <input
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  onChange={(event) => setEditorState((current) => (current ? { ...current, description: event.target.value } : current))}
-                  value={editorState.description}
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-                <span>Quantity</span>
-                <input
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  min="0"
-                  onChange={(event) => setEditorState((current) => (current ? { ...current, quantity: event.target.value } : current))}
-                  step="0.001"
-                  type="number"
-                  value={editorState.quantity}
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-                <span>Rate</span>
-                <input
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  min="0"
-                  onChange={(event) => setEditorState((current) => (current ? { ...current, rate: event.target.value } : current))}
-                  step="0.01"
-                  type="number"
-                  value={editorState.rate}
-                />
-              </label>
-
-              <label className="flex flex-col gap-1 text-xs font-medium uppercase tracking-wide text-slate-600">
-                <span>UoM</span>
-                <select
-                  className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                  onChange={(event) => setEditorState((current) => (current ? { ...current, uom: event.target.value } : current))}
-                  value={editorState.uom}
-                >
-                  <option value="">Select a unit</option>
-                  {units.map((unit) => (
-                    <option key={unit.code} value={unit.code}>
-                      {unit.label}
-                    </option>
-                  ))}
-                  {editorState.uom && !units.some((unit) => unit.code === editorState.uom) ? (
-                    <option value={editorState.uom}>{editorState.uom}</option>
-                  ) : null}
-                </select>
-              </label>
-            </div>
-
-            <div className="mt-4">
-              <Button disabled={isSaving} onClick={saveEditor} type="button">
-                {isSaving ? 'Saving…' : editorState.mode === 'create' ? 'Create line' : 'Save changes'}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
         {errorMessage ? <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
@@ -610,30 +604,55 @@ export function BudgetPage({ session }: BudgetPageProps) {
                 </tr>
               </thead>
               <tbody>
+                {editorState?.mode === 'create' && editorState.parentId === '' ? renderInlineEditorRow('new-root-inline-row') : null}
                 {budgetRows.map((item) => (
-                  <tr className="border-b border-slate-100" key={item.id}>
-                    <td className="py-3 pr-3 font-medium text-slate-800">{item.code}</td>
-                    <td className={`py-3 pr-3 text-slate-600 ${levelIndentClass[item.level]}`}>{item.description}</td>
-                    <td className="py-3 pr-3 text-slate-600">{toNumber(item.quantity)}</td>
-                    <td className="py-3 pr-3 text-slate-600">{item.uom}</td>
-                    <td className="py-3 pr-3 text-slate-600">{toCurrency(item.rate)}</td>
-                    <td className="py-3 pr-3 text-slate-700">{toCurrency(item.item_value)}</td>
-                    <td className="py-3 pr-3 text-slate-700">{toNumber(item.rolledQuantity)}</td>
-                    <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
-                    <td className="py-3">
-                      <div className="flex flex-wrap gap-1">
-                        <Button onClick={() => startEdit(item)} className="px-2 py-1 text-xs" type="button" variant="ghost">
-                          Edit
-                        </Button>
-                        <Button disabled={item.level >= 8} onClick={() => startCreate('section', item.id)} className="px-2 py-1 text-xs" type="button" variant="secondary">
-                          + Section
-                        </Button>
-                        <Button disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} className="px-2 py-1 text-xs" type="button">
-                          + Position
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
+                  <Fragment key={item.id}>
+                    {editorState?.mode === 'edit' && editorState.rowId === item.id ? (
+                      renderInlineEditorRow(`edit-inline-row-${item.id}`)
+                    ) : (
+                      <tr className="border-b border-slate-100" key={item.id}>
+                        <td className="py-3 pr-3 font-medium text-slate-800">{item.code}</td>
+                        <td className="py-3 pr-3 text-slate-600" style={{ paddingLeft: `${(item.level - 1) * 24 + 4}px` }}>
+                          {item.description}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600">{toNumber(item.quantity)}</td>
+                        <td className="py-3 pr-3 text-slate-600">{item.uom}</td>
+                        <td className="py-3 pr-3 text-slate-600">{toCurrency(item.rate)}</td>
+                        <td className="py-3 pr-3 text-slate-700">{toCurrency(item.item_value)}</td>
+                        <td className="py-3 pr-3 text-slate-700">{toNumber(item.rolledQuantity)}</td>
+                        <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
+                        <td className="py-3">
+                          <div className="flex flex-wrap gap-1">
+                            <Button onClick={() => startEdit(item)} className="px-2 py-1 text-xs" type="button" variant="ghost">
+                              Edit
+                            </Button>
+                            <Button
+                              disabled={item.level >= 8}
+                              onClick={() => startCreate('section', item.id)}
+                              className="px-2 py-1 text-xs"
+                              type="button"
+                              variant="secondary"
+                            >
+                              + Section
+                            </Button>
+                            <Button disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} className="px-2 py-1 text-xs" type="button">
+                              + Position
+                            </Button>
+                            <Button
+                              className="px-2 py-1 text-xs"
+                              disabled={deletingItemId === item.id}
+                              onClick={() => handleDelete(item)}
+                              type="button"
+                              variant="danger"
+                            >
+                              {deletingItemId === item.id ? 'Deleting…' : 'Delete'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {editorState?.mode === 'create' && editorState.parentId === item.id ? renderInlineEditorRow(`new-inline-row-${item.id}`) : null}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
