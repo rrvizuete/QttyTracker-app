@@ -553,12 +553,12 @@ export function BudgetPage({ session }: BudgetPageProps) {
         <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
         <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
         <td className="py-1.5 pr-3 text-sm text-slate-500">—</td>
-        <td className="py-1.5 align-middle">
-          <div className="flex items-center gap-1">
-            <Button className="px-2 py-1 text-xs" disabled={isSaving} onClick={saveEditor} type="button">
+        <td className="py-1.5 align-middle whitespace-nowrap">
+          <div className="flex flex-nowrap items-center gap-1">
+            <Button className="shrink-0 px-2 py-1 text-xs" disabled={isSaving} onClick={saveEditor} type="button">
               {isSaving ? 'Saving…' : 'Save'}
             </Button>
-            <Button className="px-2 py-1 text-xs" onClick={() => setEditorState(null)} type="button" variant="ghost">
+            <Button className="shrink-0 px-2 py-1 text-xs" onClick={() => setEditorState(null)} type="button" variant="ghost">
               Cancel
             </Button>
           </div>
@@ -654,25 +654,30 @@ export function BudgetPage({ session }: BudgetPageProps) {
                         <td className="py-3 pr-3 text-slate-700">{toCurrency(item.item_value)}</td>
                         <td className="py-3 pr-3 text-slate-700">{toNumber(item.rolledQuantity)}</td>
                         <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
-                        <td className="py-3">
-                          <div className="flex flex-wrap gap-1">
-                            <Button onClick={() => startEdit(item)} className="px-2 py-1 text-xs" type="button" variant="ghost">
+                        <td className="py-3 whitespace-nowrap">
+                          <div className="flex flex-nowrap items-center gap-1">
+                            <Button onClick={() => startEdit(item)} className="shrink-0 px-2 py-1 text-xs" type="button" variant="ghost">
                               Edit
                             </Button>
                             <Button
                               disabled={item.level >= 8}
                               onClick={() => startCreate('section', item.id)}
-                              className="px-2 py-1 text-xs"
+                              className="shrink-0 px-2 py-1 text-xs"
                               type="button"
                               variant="secondary"
                             >
                               + Section
                             </Button>
-                            <Button disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} className="px-2 py-1 text-xs" type="button">
+                            <Button
+                              disabled={item.level >= 8}
+                              onClick={() => startCreate('position', item.id)}
+                              className="shrink-0 px-2 py-1 text-xs"
+                              type="button"
+                            >
                               + Position
                             </Button>
                             <Button
-                              className="px-2 py-1 text-xs"
+                              className="shrink-0 px-2 py-1 text-xs"
                               disabled={deletingItemId === item.id}
                               onClick={() => handleDelete(item)}
                               type="button"
