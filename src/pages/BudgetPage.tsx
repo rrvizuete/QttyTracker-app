@@ -40,6 +40,7 @@ type EditorMode = 'create' | 'edit';
 type LineKind = 'position' | 'section';
 
 interface EditorState {
+  projectId: string;
   mode: EditorMode;
   kind: LineKind;
   rowId: string | null;
@@ -176,6 +177,7 @@ function sortByHierarchy(items: RollupRow[]): RollupRow[] {
 }
 
 function makeEditorState(params: {
+  projectId: string;
   mode: EditorMode;
   kind: LineKind;
   rowId?: string | null;
@@ -188,6 +190,7 @@ function makeEditorState(params: {
   rate?: string;
 }): EditorState {
   const {
+    projectId,
     mode,
     kind,
     rowId = null,
@@ -201,6 +204,7 @@ function makeEditorState(params: {
   } = params;
 
   return {
+    projectId,
     mode,
     kind,
     rowId,
@@ -328,7 +332,16 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
     setErrorMessage(null);
     setSuccessMessage(null);
-    setEditorState(makeEditorState({ mode: 'create', kind, parentId: parentId ?? '', level, uom: units[0]?.code ?? '' }));
+    setEditorState(
+      makeEditorState({
+        projectId: selectedProjectId,
+        mode: 'create',
+        kind,
+        parentId: parentId ?? '',
+        level,
+        uom: units[0]?.code ?? '',
+      }),
+    );
   }
 
   function startEdit(item: BudgetItemRecord) {
@@ -337,6 +350,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
     setEditorState(
       makeEditorState({
         mode: 'edit',
+        projectId: item.project_id,
         kind: item.quantity === 0 && item.rate === 0 ? 'section' : 'position',
         rowId: item.id,
         parentId: item.parent_id ?? '',
@@ -362,6 +376,12 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
     if (!editorState.code.trim() || !editorState.description.trim() || !editorState.uom.trim()) {
       setErrorMessage('Code, description, and UoM are required.');
+      return;
+    }
+
+    if (editorState.projectId !== selectedProjectId) {
+      setErrorMessage('This line belongs to a different project. Re-open it from the currently selected project before saving.');
+      setEditorState(null);
       return;
     }
 
@@ -418,6 +438,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
         rate,
       })
       .eq('id', editorState.rowId)
+      .eq('project_id', selectedProjectId)
       .select('id,project_id,parent_id,code,description,level,quantity,uom,rate,item_value')
       .single();
 
