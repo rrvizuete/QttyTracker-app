@@ -231,6 +231,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const editorRowRef = useRef<HTMLTableRowElement | null>(null);
   const editorCodeInputRef = useRef<HTMLInputElement | null>(null);
+  const activeEditorKey = editorState ? `${editorState.mode}:${editorState.rowId ?? 'new'}:${editorState.parentId}` : null;
 
   const budgetRows = useMemo(() => {
     const rolled = buildRollups(budgetItems);
@@ -324,13 +325,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (!editorState) {
+    if (!activeEditorKey) {
       return;
     }
 
     editorRowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     editorCodeInputRef.current?.focus();
-  }, [editorState]);
+  }, [activeEditorKey]);
 
   function startCreate(kind: LineKind, parentId: string | null) {
     const parent = parentId ? budgetItems.find((item) => item.id === parentId) : null;
