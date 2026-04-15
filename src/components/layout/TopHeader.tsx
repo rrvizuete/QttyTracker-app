@@ -10,6 +10,7 @@ interface TopHeaderProps {
 const sectionTitles: Record<AppSection, { label: string; heading: string }> = {
   dashboard: { label: 'Insights', heading: 'Project Dashboard' },
   projects: { label: 'Projects', heading: 'Project Management' },
+  budget: { label: 'Budget', heading: 'Budget Loading' },
 };
 
 export function TopHeader({ userEmail, onSignOut, activeSection }: TopHeaderProps) {

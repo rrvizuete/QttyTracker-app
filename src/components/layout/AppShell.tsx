@@ -2,7 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 
-export type AppSection = 'dashboard' | 'projects';
+export type AppSection = 'dashboard' | 'projects' | 'budget';
 
 interface AppShellProps extends PropsWithChildren {
   userEmail: string;
