@@ -54,6 +54,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingRow, setEditingRow] = useState<ProgressEditor | null>(null);
+  const [openPicker, setOpenPicker] = useState<'item' | 'description' | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [budgetFilter, setBudgetFilter] = useState('all');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -223,6 +224,11 @@ export function ProgressPage({ session }: ProgressPageProps) {
     );
   }
 
+  function handlePickerSelect(item: BudgetItemOption) {
+    setEditorFromBudgetItem(item.id);
+    setOpenPicker(null);
+  }
+
   function startCreateInline() {
     if (budgetItems.length === 0) {
       setErrorMessage('Create budget items first before adding progress updates.');
@@ -240,6 +246,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
       percent_complete: '',
       remarks: '',
     });
+    setOpenPicker(null);
     setErrorMessage(null);
     setSuccessMessage(null);
   }
@@ -259,6 +266,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
       percent_complete: row.percent_complete === null ? '' : String(row.percent_complete),
       remarks: row.remarks ?? '',
     });
+    setOpenPicker(null);
     setErrorMessage(null);
     setSuccessMessage(null);
   }
@@ -320,6 +328,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
 
       setProgressRows((current) => [response.data as ProgressRecord, ...current]);
       setEditingRow(null);
+      setOpenPicker(null);
       setSuccessMessage('Progress update created successfully.');
       return;
     }
@@ -347,6 +356,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
 
     setProgressRows((current) => current.map((row) => (row.id === response.data.id ? (response.data as ProgressRecord) : row)));
     setEditingRow(null);
+    setOpenPicker(null);
     setSuccessMessage('Progress update saved successfully.');
   }
 
@@ -442,36 +452,62 @@ export function ProgressPage({ session }: ProgressPageProps) {
                   <tr className="border-b border-brand-100 bg-brand-50/70">
                     <td className="py-2 pr-3"><input className="h-8 rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, reporting_date: e.target.value } : c))} type="date" value={editingRow.reporting_date} /></td>
                     <td className="py-2 pr-3">
-                      <input
-                        className="h-8 w-full rounded-md border border-slate-300 px-2"
-                        list="progress-item-options-code"
-                        onChange={(e) => {
-                          const query = e.target.value;
-                          setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
-                          const matched = resolveItemFromQuery(query);
-                          if (matched) {
-                            setEditorFromBudgetItem(matched.id);
-                          }
-                        }}
-                        placeholder="Type code or description"
-                        value={editingRow.itemQuery}
-                      />
+                      <div className="relative">
+                        <input
+                          className="h-8 w-full rounded-md border border-slate-300 px-2"
+                          onChange={(e) => {
+                            const query = e.target.value;
+                            setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
+                            setOpenPicker('item');
+                          }}
+                          onFocus={() => setOpenPicker('item')}
+                          placeholder="Type code"
+                          value={editingRow.itemQuery}
+                        />
+                        {openPicker === 'item' && matchingCodeItems.length > 0 ? (
+                          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                            {matchingCodeItems.map((item) => (
+                              <button
+                                className="block w-full px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                                key={`create-code-${item.id}`}
+                                onClick={() => handlePickerSelect(item)}
+                                type="button"
+                              >
+                                {item.code} — {item.description}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="py-2 pr-3">
-                      <input
-                        className="h-8 w-full rounded-md border border-slate-300 px-2"
-                        list="progress-item-options-description"
-                        onChange={(e) => {
-                          const query = e.target.value;
-                          setEditingRow((c) => (c ? { ...c, descriptionQuery: query } : c));
-                          const matched = resolveItemFromQuery(query);
-                          if (matched) {
-                            setEditorFromBudgetItem(matched.id);
-                          }
-                        }}
-                        placeholder="Type description"
-                        value={editingRow.descriptionQuery}
-                      />
+                      <div className="relative">
+                        <input
+                          className="h-8 w-full rounded-md border border-slate-300 px-2"
+                          onChange={(e) => {
+                            const query = e.target.value;
+                            setEditingRow((c) => (c ? { ...c, descriptionQuery: query } : c));
+                            setOpenPicker('description');
+                          }}
+                          onFocus={() => setOpenPicker('description')}
+                          placeholder="Type description"
+                          value={editingRow.descriptionQuery}
+                        />
+                        {openPicker === 'description' && matchingDescriptionItems.length > 0 ? (
+                          <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                            {matchingDescriptionItems.map((item) => (
+                              <button
+                                className="block w-full px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                                key={`create-desc-${item.id}`}
+                                onClick={() => handlePickerSelect(item)}
+                                type="button"
+                              >
+                                {item.description} ({item.code})
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="py-2 pr-3 text-slate-600">{budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—'}</td>
                     <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} /></td>
@@ -497,38 +533,64 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       </td>
                       <td className="py-3 pr-3 font-medium text-slate-800">
                         {isEditing ? (
-                          <input
-                            className="h-8 w-full rounded-md border border-slate-300 px-2"
-                            list="progress-item-options-code"
-                            onChange={(e) => {
-                              const query = e.target.value;
-                              setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
-                              const matched = resolveItemFromQuery(query);
-                              if (matched) {
-                                setEditorFromBudgetItem(matched.id);
-                              }
-                            }}
-                            placeholder="Type code or description"
-                            value={editingRow.itemQuery}
-                          />
+                          <div className="relative">
+                            <input
+                              className="h-8 w-full rounded-md border border-slate-300 px-2"
+                              onChange={(e) => {
+                                const query = e.target.value;
+                                setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
+                                setOpenPicker('item');
+                              }}
+                              onFocus={() => setOpenPicker('item')}
+                              placeholder="Type code"
+                              value={editingRow.itemQuery}
+                            />
+                            {openPicker === 'item' && matchingCodeItems.length > 0 ? (
+                              <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                                {matchingCodeItems.map((item) => (
+                                  <button
+                                    className="block w-full px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                                    key={`edit-code-${item.id}`}
+                                    onClick={() => handlePickerSelect(item)}
+                                    type="button"
+                                  >
+                                    {item.code} — {item.description}
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
                         ) : rowMeta.code}
                       </td>
                       <td className="py-3 pr-3 text-slate-600">
                         {isEditing ? (
-                          <input
-                            className="h-8 w-full rounded-md border border-slate-300 px-2"
-                            list="progress-item-options-description"
-                            onChange={(e) => {
-                              const query = e.target.value;
-                              setEditingRow((c) => (c ? { ...c, descriptionQuery: query } : c));
-                              const matched = resolveItemFromQuery(query);
-                              if (matched) {
-                                setEditorFromBudgetItem(matched.id);
-                              }
-                            }}
-                            placeholder="Type description"
-                            value={editingRow.descriptionQuery}
-                          />
+                          <div className="relative">
+                            <input
+                              className="h-8 w-full rounded-md border border-slate-300 px-2"
+                              onChange={(e) => {
+                                const query = e.target.value;
+                                setEditingRow((c) => (c ? { ...c, descriptionQuery: query } : c));
+                                setOpenPicker('description');
+                              }}
+                              onFocus={() => setOpenPicker('description')}
+                              placeholder="Type description"
+                              value={editingRow.descriptionQuery}
+                            />
+                            {openPicker === 'description' && matchingDescriptionItems.length > 0 ? (
+                              <div className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                                {matchingDescriptionItems.map((item) => (
+                                  <button
+                                    className="block w-full px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-100"
+                                    key={`edit-desc-${item.id}`}
+                                    onClick={() => handlePickerSelect(item)}
+                                    type="button"
+                                  >
+                                    {item.description} ({item.code})
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
                         ) : rowMeta.description}
                       </td>
                       <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—' : rowMeta.uom}</td>
@@ -568,16 +630,6 @@ export function ProgressPage({ session }: ProgressPageProps) {
               </tbody>
             </table>
 
-            <datalist id="progress-item-options-code">
-              {matchingCodeItems.map((item) => (
-                <option key={item.id} value={`${item.code} — ${item.description}`} />
-              ))}
-            </datalist>
-            <datalist id="progress-item-options-description">
-              {matchingDescriptionItems.map((item) => (
-                <option key={item.id} value={item.description} />
-              ))}
-            </datalist>
           </div>
         ) : (
           <p className="mt-4 text-sm text-slate-500">Loading…</p>
