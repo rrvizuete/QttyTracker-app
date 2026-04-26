@@ -56,17 +56,20 @@ Construction project budget and progress tracking is often fragmented across spr
 - Budget items should support:
   - item code
   - description
-  - unit
+  - unit of measure (UoM)
   - budget quantity
   - unit cost
-  - total budget
+  - total budget (unit cost x budget quantity)
   - optional grouping/category
 - Budget data is stored in the database and linked to a project
 
 ### 4. Progress Tracking
 - Engineers can submit progress updates against budget items
 - Progress updates should support:
-  - reporting date
+  - item code (dropdown or searchabel field retrieved from budget)
+  - description (read only and linked to the item code from budget)
+  - reporter (user - data retreived from from logged user)
+  - reporting date (editable with date picker)
   - installed quantity
   - optional percent complete
   - remarks / notes
@@ -112,6 +115,7 @@ Provide dashboards at project level showing at least:
 ## Suggested Data Model
 Main entities:
 - profiles
+- Units of Measure (UoM)
 - projects
 - project_members
 - budget_items
@@ -142,6 +146,7 @@ The first usable version is successful when:
 - Clean and professional appearance
 - Simple navigation
 - Fast forms and editable tables
+- All tables can be filtered and sorted
 - Clear dashboard visuals
 - Easy onboarding for non-technical project users
 
