@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -37,6 +37,7 @@ interface ProgressRecord {
 interface ProgressEditor {
   id: string | null;
   budget_item_id: string;
+  itemQuery: string;
   reporting_date: string;
   installed_quantity: string;
   percent_complete: string;
@@ -57,17 +58,49 @@ export function ProgressPage({ session }: ProgressPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  const budgetItemLookup = useMemo(() => new Map(budgetItems.map((item) => [item.id, item])), [budgetItems]);
+
+  const matchingItems = useMemo(() => {
+    if (!editingRow) {
+      return [];
+    }
+
+    const query = editingRow.itemQuery.trim().toLowerCase();
+    if (!query) {
+      return budgetItems.slice(0, 40);
+    }
+
+    return budgetItems
+      .filter((item) => item.code.toLowerCase().includes(query) || item.description.toLowerCase().includes(query))
+      .slice(0, 40);
+  }, [budgetItems, editingRow]);
+
+  const getRowItemMeta = useCallback((row: ProgressRecord) => {
+    const linked = budgetItemLookup.get(row.budget_item_id);
+    return {
+      code: row.budget_item?.[0]?.code ?? linked?.code ?? '—',
+      description: row.budget_item?.[0]?.description ?? linked?.description ?? '—',
+      uom: row.budget_item?.[0]?.uom ?? linked?.uom ?? '—',
+    };
+  }, [budgetItemLookup]);
+
   const filteredHistory = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
+
     return progressRows.filter((row) => {
       const matchesFilter = budgetFilter === 'all' || row.budget_item_id === budgetFilter;
-      const code = row.budget_item?.[0]?.code?.toLowerCase() ?? '';
-      const description = row.budget_item?.[0]?.description?.toLowerCase() ?? '';
+      const meta = getRowItemMeta(row);
       const remark = (row.remarks ?? '').toLowerCase();
-      const matchesSearch = term.length === 0 || code.includes(term) || description.includes(term) || remark.includes(term);
+      const matchesSearch =
+        term.length === 0 ||
+        meta.code.toLowerCase().includes(term) ||
+        meta.description.toLowerCase().includes(term) ||
+        meta.uom.toLowerCase().includes(term) ||
+        remark.includes(term);
+
       return matchesFilter && matchesSearch;
     });
-  }, [budgetFilter, progressRows, searchTerm]);
+  }, [budgetFilter, progressRows, searchTerm, getRowItemMeta]);
 
   useEffect(() => {
     let isActive = true;
@@ -137,15 +170,49 @@ export function ProgressPage({ session }: ProgressPageProps) {
     void fetchProjectData(selectedProjectId);
   }, [selectedProjectId]);
 
+  function setEditorFromBudgetItem(itemId: string, existing?: ProgressEditor | null) {
+    const item = budgetItemLookup.get(itemId);
+    const query = item ? `${item.code} — ${item.description}` : '';
+
+    setEditingRow((current) => {
+      const base = existing ?? current;
+      if (!base) {
+        return null;
+      }
+
+      return {
+        ...base,
+        budget_item_id: itemId,
+        itemQuery: query,
+      };
+    });
+  }
+
+  function resolveItemFromQuery(query: string): BudgetItemOption | null {
+    const value = query.trim().toLowerCase();
+    if (!value) {
+      return null;
+    }
+
+    return (
+      budgetItems.find((item) => `${item.code} — ${item.description}`.toLowerCase() === value) ??
+      budgetItems.find((item) => item.description.toLowerCase() === value) ??
+      budgetItems.find((item) => item.code.toLowerCase() === value) ??
+      null
+    );
+  }
+
   function startCreateInline() {
     if (budgetItems.length === 0) {
       setErrorMessage('Create budget items first before adding progress updates.');
       return;
     }
 
+    const firstItem = budgetItems[0];
     setEditingRow({
       id: null,
-      budget_item_id: budgetItems[0].id,
+      budget_item_id: firstItem.id,
+      itemQuery: `${firstItem.code} — ${firstItem.description}`,
       reporting_date: new Date().toISOString().slice(0, 10),
       installed_quantity: '',
       percent_complete: '',
@@ -156,9 +223,14 @@ export function ProgressPage({ session }: ProgressPageProps) {
   }
 
   function startEditInline(row: ProgressRecord) {
+    const linked = budgetItemLookup.get(row.budget_item_id);
+    const code = row.budget_item?.[0]?.code ?? linked?.code ?? '';
+    const description = row.budget_item?.[0]?.description ?? linked?.description ?? '';
+
     setEditingRow({
       id: row.id,
       budget_item_id: row.budget_item_id,
+      itemQuery: `${code} — ${description}`.trim(),
       reporting_date: row.reporting_date,
       installed_quantity: String(row.installed_quantity),
       percent_complete: row.percent_complete === null ? '' : String(row.percent_complete),
@@ -170,6 +242,14 @@ export function ProgressPage({ session }: ProgressPageProps) {
 
   async function saveInline() {
     if (!supabase || !selectedProjectId || !editingRow) {
+      return;
+    }
+
+    const resolvedItem = resolveItemFromQuery(editingRow.itemQuery);
+    const budgetItemId = resolvedItem?.id ?? editingRow.budget_item_id;
+
+    if (!budgetItemLookup.has(budgetItemId)) {
+      setErrorMessage('Select a valid budget item from the suggestions before saving.');
       return;
     }
 
@@ -195,7 +275,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
         .from('progress_updates')
         .insert({
           project_id: selectedProjectId,
-          budget_item_id: editingRow.budget_item_id,
+          budget_item_id: budgetItemId,
           reporting_date: editingRow.reporting_date,
           installed_quantity: qty,
           percent_complete: percent,
@@ -221,7 +301,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
     const response = await supabase
       .from('progress_updates')
       .update({
-        budget_item_id: editingRow.budget_item_id,
+        budget_item_id: budgetItemId,
         reporting_date: editingRow.reporting_date,
         installed_quantity: qty,
         percent_complete: percent,
@@ -249,7 +329,8 @@ export function ProgressPage({ session }: ProgressPageProps) {
       return;
     }
 
-    const confirmed = window.confirm(`Delete progress entry for ${row.budget_item?.[0]?.code ?? 'this item'} on ${row.reporting_date}?`);
+    const meta = getRowItemMeta(row);
+    const confirmed = window.confirm(`Delete progress entry for ${meta.code} on ${row.reporting_date}?`);
     if (!confirmed) {
       return;
     }
@@ -323,6 +404,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       <input className="h-7 w-full rounded border border-slate-300 px-2 text-xs normal-case" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search" value={searchTerm} />
                     </div>
                   </th>
+                  <th className="py-2 pr-3">UoM</th>
                   <th className="py-2 pr-3">Installed Qty</th>
                   <th className="py-2 pr-3">% Complete</th>
                   <th className="py-2 pr-3">Remarks</th>
@@ -334,13 +416,23 @@ export function ProgressPage({ session }: ProgressPageProps) {
                   <tr className="border-b border-brand-100 bg-brand-50/70">
                     <td className="py-2 pr-3"><input className="h-8 rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, reporting_date: e.target.value } : c))} type="date" value={editingRow.reporting_date} /></td>
                     <td className="py-2 pr-3">
-                      <select className="h-8 rounded-md border border-slate-300 bg-white px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, budget_item_id: e.target.value } : c))} value={editingRow.budget_item_id}>
-                        {budgetItems.map((item) => (
-                          <option key={item.id} value={item.id}>{item.code}</option>
-                        ))}
-                      </select>
+                      <input
+                        className="h-8 w-full rounded-md border border-slate-300 px-2"
+                        list="progress-item-options"
+                        onChange={(e) => {
+                          const query = e.target.value;
+                          setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
+                          const matched = resolveItemFromQuery(query);
+                          if (matched) {
+                            setEditorFromBudgetItem(matched.id);
+                          }
+                        }}
+                        placeholder="Type code or description"
+                        value={editingRow.itemQuery}
+                      />
                     </td>
-                    <td className="py-2 pr-3 text-slate-500">{budgetItems.find((item) => item.id === editingRow.budget_item_id)?.description ?? '—'}</td>
+                    <td className="py-2 pr-3 text-slate-600">{budgetItemLookup.get(editingRow.budget_item_id)?.description ?? '—'}</td>
+                    <td className="py-2 pr-3 text-slate-600">{budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—'}</td>
                     <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} /></td>
                     <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, percent_complete: e.target.value } : c))} step="0.01" type="number" value={editingRow.percent_complete} /></td>
                     <td className="py-2 pr-3"><input className="h-8 w-full rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, remarks: e.target.value } : c))} value={editingRow.remarks} /></td>
@@ -354,6 +446,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
                 ) : null}
                 {filteredHistory.map((row) => {
                   const isEditing = editingRow?.id === row.id;
+                  const rowMeta = getRowItemMeta(row);
                   return (
                     <tr className="border-b border-slate-100" key={row.id}>
                       <td className="py-3 pr-3 text-slate-700">
@@ -363,14 +456,24 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       </td>
                       <td className="py-3 pr-3 font-medium text-slate-800">
                         {isEditing ? (
-                          <select className="h-8 rounded-md border border-slate-300 bg-white px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, budget_item_id: e.target.value } : c))} value={editingRow.budget_item_id}>
-                            {budgetItems.map((item) => (
-                              <option key={item.id} value={item.id}>{item.code}</option>
-                            ))}
-                          </select>
-                        ) : (row.budget_item?.[0]?.code ?? '—')}
+                          <input
+                            className="h-8 w-full rounded-md border border-slate-300 px-2"
+                            list="progress-item-options"
+                            onChange={(e) => {
+                              const query = e.target.value;
+                              setEditingRow((c) => (c ? { ...c, itemQuery: query } : c));
+                              const matched = resolveItemFromQuery(query);
+                              if (matched) {
+                                setEditorFromBudgetItem(matched.id);
+                              }
+                            }}
+                            placeholder="Type code or description"
+                            value={editingRow.itemQuery}
+                          />
+                        ) : rowMeta.code}
                       </td>
-                      <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItems.find((item) => item.id === editingRow.budget_item_id)?.description ?? '—' : (row.budget_item?.[0]?.description ?? '—')}</td>
+                      <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItemLookup.get(editingRow.budget_item_id)?.description ?? '—' : rowMeta.description}</td>
+                      <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—' : rowMeta.uom}</td>
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
                           <input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} />
@@ -379,12 +482,12 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
                           <input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, percent_complete: e.target.value } : c))} step="0.01" type="number" value={editingRow.percent_complete} />
-                        ) : (row.percent_complete ?? '—')}
+                        ) : row.percent_complete ?? '—'}
                       </td>
                       <td className="py-3 pr-3 text-slate-600">
                         {isEditing ? (
                           <input className="h-8 w-full rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, remarks: e.target.value } : c))} value={editingRow.remarks} />
-                        ) : (row.remarks ?? '—')}
+                        ) : row.remarks ?? '—'}
                       </td>
                       <td className="py-3 whitespace-nowrap">
                         <div className="flex gap-1">
@@ -406,6 +509,12 @@ export function ProgressPage({ session }: ProgressPageProps) {
                 })}
               </tbody>
             </table>
+
+            <datalist id="progress-item-options">
+              {matchingItems.map((item) => (
+                <option key={item.id} value={`${item.code} — ${item.description}`} />
+              ))}
+            </datalist>
           </div>
         ) : (
           <p className="mt-4 text-sm text-slate-500">Loading…</p>
