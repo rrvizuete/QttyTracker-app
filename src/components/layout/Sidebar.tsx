@@ -3,6 +3,7 @@ import { cn } from '../../lib/cn';
 
 const navItems: Array<{ name: string; section: AppSection }> = [
   { name: 'Projects', section: 'projects' },
+  { name: 'Budget', section: 'budget' },
   { name: 'Dashboard', section: 'dashboard' },
 ];
 
