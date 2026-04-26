@@ -249,6 +249,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [lineTypeFilter, setLineTypeFilter] = useState<'all' | LineKind>('all');
   const [levelFilter, setLevelFilter] = useState('all');
   const [valueSort, setValueSort] = useState<'code-asc' | 'value-desc'>('code-asc');
+  const [showImportHelp, setShowImportHelp] = useState(false);
   const editorRowRef = useRef<HTMLTableRowElement | null>(null);
   const editorCodeInputRef = useRef<HTMLInputElement | null>(null);
   const activeEditorKey = editorState ? `${editorState.mode}:${editorState.rowId ?? 'new'}:${editorState.parentId}` : null;
@@ -502,7 +503,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
     setSuccessMessage('Budget line updated successfully.');
   }
 
-  async function handleImportExcel(file: File) {
+  async function handleImportCsv(file: File) {
     if (!supabase || !selectedProjectId) {
       setErrorMessage('Select a project before importing.');
       return;
@@ -608,9 +609,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
       }
 
       await fetchBudgetItems(selectedProjectId);
-      setSuccessMessage(`Excel import completed. ${insertedCount} rows imported.`);
+      setSuccessMessage(`CSV import completed. ${insertedCount} rows imported.`);
     } catch {
-      setErrorMessage('Failed to parse Excel file. Upload a valid .xlsx/.xls file with a header row.');
+      setErrorMessage('Failed to parse CSV/TSV file. Upload a valid file with a header row.');
     }
 
     setIsImporting(false);
@@ -722,63 +723,21 @@ export function BudgetPage({ session }: BudgetPageProps) {
     <div className="space-y-6">
       <section>
         <h1 className="text-2xl font-semibold text-slate-900">Budget Management</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage hierarchy, filter lines, and import budget data exported from Excel (CSV/TSV).</p>
+        <p className="mt-1 text-sm text-slate-500">Manage hierarchy, inline edits, and CSV/TSV imports for budget data.</p>
       </section>
 
       <Card>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-            <span>Project</span>
-            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}>
-              {projects.length === 0 ? <option value="">No projects available</option> : null}
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-            <span>Search</span>
-            <input className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Code or description" value={searchTerm} />
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-            <span>Line Type</span>
-            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setLineTypeFilter(e.target.value as 'all' | LineKind)} value={lineTypeFilter}>
-              <option value="all">All</option>
-              <option value="section">Sections only</option>
-              <option value="position">Positions only</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-            <span>Level</span>
-            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setLevelFilter(e.target.value)} value={levelFilter}>
-              <option value="all">All levels</option>
-              {Array.from({ length: 8 }, (_, index) => index + 1).map((level) => (
-                <option key={level} value={String(level)}>
-                  Level {level}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-            <span>UoM + Sort</span>
-            <div className="flex gap-2">
-              <select className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm" onChange={(e) => setUomFilter(e.target.value)} value={uomFilter}>
-                <option value="all">All UoM</option>
-                {units.map((unit) => (
-                  <option key={unit.code} value={unit.code}>
-                    {unit.code}
-                  </option>
-                ))}
-              </select>
-              <select className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm" onChange={(e) => setValueSort(e.target.value as 'code-asc' | 'value-desc')} value={valueSort}>
-                <option value="code-asc">Code sort</option>
-                <option value="value-desc">Top value</option>
-              </select>
-            </div>
-          </label>
-        </div>
+        <label className="flex max-w-sm flex-col gap-2 text-sm font-medium text-slate-700">
+          <span>Project</span>
+          <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}>
+            {projects.length === 0 ? <option value="">No projects available</option> : null}
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </label>
       </Card>
 
       <Card>
@@ -796,16 +755,26 @@ export function BudgetPage({ session }: BudgetPageProps) {
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) {
-                    void handleImportExcel(file);
+                    void handleImportCsv(file);
                   }
                   event.currentTarget.value = '';
                 }}
                 type="file"
               />
               <span className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                {isImporting ? 'Importing…' : 'Import Excel File'}
+                {isImporting ? 'Importing…' : 'Import CSV/TSV'}
               </span>
             </label>
+            <Button onClick={() => setShowImportHelp(true)} type="button" variant="ghost">
+              CSV format help
+            </Button>
+            <a
+              className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
+              download="budget-import-template.csv"
+              href={`data:text/csv;charset=utf-8,${encodeURIComponent('code,description,quantity,uom,rate,parentCode,kind\nA-100,Site setup,0,LS,0,,section\nA-110,Temporary fencing,120,m,45,A-100,position')}`}
+            >
+              Download template
+            </a>
             <Button disabled={!selectedProjectId || isSaving} onClick={() => startCreate('section', null)} type="button" variant="secondary">
               Add Section
             </Button>
@@ -823,7 +792,53 @@ export function BudgetPage({ session }: BudgetPageProps) {
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-3">Code</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Qty</th><th className="py-2 pr-3">UoM</th><th className="py-2 pr-3">Rate</th><th className="py-2 pr-3">Line Value</th><th className="py-2 pr-3">Rolled Qty</th><th className="py-2 pr-3">Rolled Value</th><th className="py-2">Actions</th>
+                  <th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Code</p>
+                      <input className="h-7 w-full rounded border border-slate-300 px-2 text-xs normal-case" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search" value={searchTerm} />
+                    </div>
+                  </th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Qty</p>
+                      <select className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case" onChange={(e) => setLineTypeFilter(e.target.value as 'all' | LineKind)} value={lineTypeFilter}>
+                        <option value="all">All types</option>
+                        <option value="section">Sections</option>
+                        <option value="position">Positions</option>
+                      </select>
+                    </div>
+                  </th><th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>UoM</p>
+                      <select className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case" onChange={(e) => setUomFilter(e.target.value)} value={uomFilter}>
+                        <option value="all">All</option>
+                        {units.map((unit) => (
+                          <option key={unit.code} value={unit.code}>
+                            {unit.code}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </th><th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Rate</p>
+                      <select className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case" onChange={(e) => setLevelFilter(e.target.value)} value={levelFilter}>
+                        <option value="all">All lvls</option>
+                        {Array.from({ length: 8 }, (_, index) => index + 1).map((level) => (
+                          <option key={level} value={String(level)}>
+                            L{level}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </th><th className="py-2 pr-3">Line Value</th><th className="py-2 pr-3">Rolled Qty</th><th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Rolled Value</p>
+                      <select className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case" onChange={(e) => setValueSort(e.target.value as 'code-asc' | 'value-desc')} value={valueSort}>
+                        <option value="code-asc">Code</option>
+                        <option value="value-desc">Top value</option>
+                      </select>
+                    </div>
+                  </th><th className="py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -860,6 +875,26 @@ export function BudgetPage({ session }: BudgetPageProps) {
           </div>
         ) : null}
       </Card>
+
+      {showImportHelp ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">CSV/TSV import structure</h3>
+            <p className="mt-2 text-sm text-slate-600">Required columns: <strong>code</strong>, <strong>description</strong>, <strong>uom</strong>. Optional: quantity, rate, parentCode, kind.</p>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
+              <li><strong>kind</strong>: section or position (default: position).</li>
+              <li><strong>parentCode</strong>: sets hierarchy parent by existing/imported code.</li>
+              <li>Sections are forced to quantity=0 and rate=0.</li>
+            </ul>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+              code,description,quantity,uom,rate,parentCode,kind<br/>A-100,Site setup,0,LS,0,,section<br/>A-110,Temporary fencing,120,m,45,A-100,position
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Button onClick={() => setShowImportHelp(false)} type="button">Close</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

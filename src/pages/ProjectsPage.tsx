@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -29,14 +29,13 @@ const initialFormState: ProjectFormState = {
   status: 'active',
 };
 
-
 function mapProjectsError(message: string): string {
-  if (message.includes("public.projects") && message.includes('schema cache')) {
+  if (message.includes('public.projects') && message.includes('schema cache')) {
     return 'Projects table is missing in Supabase. Run supabase/migrations/20260414_create_projects.sql in the SQL editor, then refresh.';
   }
 
   if (message.toLowerCase().includes('row-level security')) {
-    return 'Project creation was blocked by RLS. Confirm all migrations are applied (including project_members), then sign out and sign in again.';
+    return 'Project action was blocked by RLS. Confirm migrations are applied (including project_members), then sign out and sign in again.';
   }
 
   return message;
@@ -46,12 +45,30 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  const [savingProjectId, setSavingProjectId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [accessLevel, setAccessLevel] = useState('admin');
   const [formState, setFormState] = useState<ProjectFormState>(initialFormState);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [editingProject, setEditingProject] = useState<ProjectFormState & { id: string } | null>(null);
+  const editNameRef = useRef<HTMLInputElement | null>(null);
 
   const isAdmin = useMemo(() => accessLevel === 'admin', [accessLevel]);
+
+  const filteredProjects = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    return projects.filter((project) => {
+      const matchesTerm =
+        term.length === 0 ||
+        project.name.toLowerCase().includes(term) ||
+        (project.description ?? '').toLowerCase().includes(term);
+      const matchesStatus = statusFilter === 'all' || (project.status ?? 'active') === statusFilter;
+      return matchesTerm && matchesStatus;
+    });
+  }, [projects, searchTerm, statusFilter]);
 
   useEffect(() => {
     let isActive = true;
@@ -101,6 +118,12 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
     };
   }, [session.user.id]);
 
+  useEffect(() => {
+    if (editingProject) {
+      editNameRef.current?.focus();
+    }
+  }, [editingProject]);
+
   async function handleCreateProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -138,11 +161,75 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
     setSuccessMessage('Project created successfully.');
   }
 
+  async function handleDeleteProject(project: ProjectRecord) {
+    if (!supabase) {
+      return;
+    }
+
+    const confirmation = window.confirm(`Delete project "${project.name}" and all associated memberships, budget lines, and progress updates?`);
+    if (!confirmation) {
+      return;
+    }
+
+    setDeletingProjectId(project.id);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const response = await supabase.from('projects').delete().eq('id', project.id);
+
+    setDeletingProjectId(null);
+
+    if (response.error) {
+      setErrorMessage(mapProjectsError(response.error.message));
+      return;
+    }
+
+    setProjects((current) => current.filter((item) => item.id !== project.id));
+    setSuccessMessage('Project and associated data deleted successfully.');
+  }
+
+  async function saveInlineProject() {
+    if (!supabase || !editingProject) {
+      return;
+    }
+
+    if (!editingProject.name.trim()) {
+      setErrorMessage('Project name is required.');
+      return;
+    }
+
+    setSavingProjectId(editingProject.id);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    const response = await supabase
+      .from('projects')
+      .update({
+        name: editingProject.name.trim(),
+        description: editingProject.description.trim() || null,
+        status: editingProject.status.trim() || 'active',
+      })
+      .eq('id', editingProject.id)
+      .select('id,name,description,status,created_at')
+      .single();
+
+    setSavingProjectId(null);
+
+    if (response.error) {
+      setErrorMessage(mapProjectsError(response.error.message));
+      return;
+    }
+
+    setProjects((current) => current.map((item) => (item.id === response.data.id ? response.data : item)));
+    setEditingProject(null);
+    setSuccessMessage('Project updated successfully.');
+  }
+
   return (
     <div className="space-y-6">
       <section>
         <h1 className="text-2xl font-semibold text-slate-900">Phase 2: Projects</h1>
-        <p className="mt-1 text-sm text-slate-500">Create and review projects directly from Supabase-backed data.</p>
+        <p className="mt-1 text-sm text-slate-500">Create, edit, and delete projects directly from Supabase-backed data.</p>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
@@ -164,13 +251,7 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
                 required
                 value={formState.name}
               />
-              <Input
-                label="Status"
-                onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value }))}
-                placeholder="active"
-                required
-                value={formState.status}
-              />
+              <Input label="Status" onChange={(event) => setFormState((current) => ({ ...current, status: event.target.value }))} placeholder="active" required value={formState.status} />
               <Input
                 label="Description"
                 onChange={(event) => setFormState((current) => ({ ...current, description: event.target.value }))}
@@ -190,39 +271,108 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
         <Card>
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">Project List</h2>
-            <p className="text-sm text-slate-500">{projects.length} total</p>
+            <p className="text-sm text-slate-500">{filteredProjects.length} shown / {projects.length} total</p>
           </div>
 
           {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading projects…</p> : null}
-
-          {!isLoading && projects.length === 0 ? (
-            <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">No projects found. Create your first project to get started.</p>
-          ) : null}
 
           {!isLoading && projects.length > 0 ? (
             <div className="mt-4 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                    <th className="py-2 pr-3">Name</th>
-                    <th className="py-2 pr-3">Status</th>
+                    <th className="py-2 pr-3">
+                      <div className="space-y-1">
+                        <p>Name</p>
+                        <input className="h-8 w-full rounded-md border border-slate-300 px-2 text-xs normal-case" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search name/desc" value={searchTerm} />
+                      </div>
+                    </th>
+                    <th className="py-2 pr-3">
+                      <div className="space-y-1">
+                        <p>Status</p>
+                        <select className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-xs normal-case" onChange={(e) => setStatusFilter(e.target.value)} value={statusFilter}>
+                          <option value="all">All</option>
+                          <option value="active">Active</option>
+                          <option value="on-hold">On-hold</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      </div>
+                    </th>
                     <th className="py-2 pr-3">Description</th>
-                    <th className="py-2">Created</th>
+                    <th className="py-2 pr-3">Created</th>
+                    <th className="py-2">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {projects.map((project) => (
-                    <tr className="border-b border-slate-100" key={project.id}>
-                      <td className="py-3 pr-3 font-medium text-slate-800">{project.name}</td>
-                      <td className="py-3 pr-3 text-slate-600">{project.status ?? '—'}</td>
-                      <td className="py-3 pr-3 text-slate-600">{project.description ?? '—'}</td>
-                      <td className="py-3 text-slate-600">{new Date(project.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
+                  {filteredProjects.map((project) => {
+                    const isEditing = editingProject?.id === project.id;
+                    return (
+                      <tr className="border-b border-slate-100" key={project.id}>
+                        <td className="py-3 pr-3 font-medium text-slate-800">
+                          {isEditing ? (
+                            <input
+                              className="h-8 w-full rounded-md border border-slate-300 px-2 text-sm"
+                              onChange={(event) => setEditingProject((current) => (current ? { ...current, name: event.target.value } : current))}
+                              ref={editNameRef}
+                              value={editingProject.name}
+                            />
+                          ) : (
+                            project.name
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600">
+                          {isEditing ? (
+                            <input
+                              className="h-8 w-full rounded-md border border-slate-300 px-2 text-sm"
+                              onChange={(event) => setEditingProject((current) => (current ? { ...current, status: event.target.value } : current))}
+                              value={editingProject.status}
+                            />
+                          ) : (
+                            project.status ?? '—'
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600">
+                          {isEditing ? (
+                            <input
+                              className="h-8 w-full rounded-md border border-slate-300 px-2 text-sm"
+                              onChange={(event) => setEditingProject((current) => (current ? { ...current, description: event.target.value } : current))}
+                              value={editingProject.description}
+                            />
+                          ) : (
+                            project.description ?? '—'
+                          )}
+                        </td>
+                        <td className="py-3 pr-3 text-slate-600">{new Date(project.created_at).toLocaleDateString()}</td>
+                        <td className="py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1">
+                            {isEditing ? (
+                              <>
+                                <Button className="px-2 py-1 text-xs" disabled={savingProjectId === project.id} onClick={saveInlineProject} type="button">
+                                  {savingProjectId === project.id ? 'Saving…' : 'Save'}
+                                </Button>
+                                <Button className="px-2 py-1 text-xs" onClick={() => setEditingProject(null)} type="button" variant="ghost">
+                                  Cancel
+                                </Button>
+                              </>
+                            ) : (
+                              <Button className="px-2 py-1 text-xs" onClick={() => setEditingProject({ id: project.id, name: project.name, description: project.description ?? '', status: project.status ?? 'active' })} type="button" variant="ghost">
+                                Edit
+                              </Button>
+                            )}
+                            <Button className="px-2 py-1 text-xs" disabled={deletingProjectId === project.id} onClick={() => handleDeleteProject(project)} type="button" variant="danger">
+                              {deletingProjectId === project.id ? 'Deleting…' : 'Delete'}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           ) : null}
+
+          {!isLoading && projects.length === 0 ? <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">No projects found. Create your first project to get started.</p> : null}
         </Card>
       </section>
     </div>
