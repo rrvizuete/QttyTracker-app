@@ -6,6 +6,7 @@ const navItems: Array<{ name: string; section: AppSection }> = [
   { name: 'Budget', section: 'budget' },
   { name: 'Progress', section: 'progress' },
   { name: 'Dashboard', section: 'dashboard' },
+  { name: 'Settings', section: 'settings' },
 ];
 
 interface SidebarProps {

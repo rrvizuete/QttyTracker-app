@@ -292,7 +292,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
       const [projectsResponse, unitsResponse] = await Promise.all([
         supabase.from('projects').select('id,name').order('name'),
-        supabase.from('units_of_measure').select('code,label').order('label'),
+        supabase.from('units_of_measure').select('code,label').order('sort_order', { ascending: true }).order('label'),
       ]);
 
       if (!isActive) {
@@ -771,7 +771,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
             <a
               className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200"
               download="budget-import-template.csv"
-              href={`data:text/csv;charset=utf-8,${encodeURIComponent('code,description,quantity,uom,rate,parentCode,kind\nA-100,Site setup,0,LS,0,,section\nA-110,Temporary fencing,120,m,45,A-100,position')}`}
+              href={`data:text/csv;charset=utf-8,${encodeURIComponent('code,description,quantity,uom,rate,parentCode,kind\nA-100,Site setup,0,LS,0,,section\nA-110,Temporary fencing,120,LF,45,A-100,position')}`}
             >
               Download template
             </a>
@@ -887,7 +887,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
               <li>Sections are forced to quantity=0 and rate=0.</li>
             </ul>
             <div className="mt-4 overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-              code,description,quantity,uom,rate,parentCode,kind<br/>A-100,Site setup,0,LS,0,,section<br/>A-110,Temporary fencing,120,m,45,A-100,position
+              code,description,quantity,uom,rate,parentCode,kind<br/>A-100,Site setup,0,LS,0,,section<br/>A-110,Temporary fencing,120,LF,45,A-100,position
             </div>
             <div className="mt-4 flex justify-end">
               <Button onClick={() => setShowImportHelp(false)} type="button">Close</Button>

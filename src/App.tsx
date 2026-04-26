@@ -8,8 +8,9 @@ import { BudgetPage } from './pages/BudgetPage';
 import { ProgressPage } from './pages/ProgressPage';
 import { provisionUserProfile } from './lib/profile';
 import { supabase } from './lib/supabase';
+import { SettingsPage } from './pages/SettingsPage';
 
-type AppSection = 'dashboard' | 'projects' | 'budget' | 'progress';
+type AppSection = 'dashboard' | 'projects' | 'budget' | 'progress' | 'settings';
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -73,6 +74,7 @@ export function App() {
       {activeSection === 'projects' ? <ProjectsPage session={session} /> : null}
       {activeSection === 'budget' ? <BudgetPage session={session} /> : null}
       {activeSection === 'progress' ? <ProgressPage session={session} /> : null}
+      {activeSection === 'settings' ? <SettingsPage session={session} /> : null}
     </AppShell>
   );
 }

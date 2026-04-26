@@ -12,6 +12,7 @@ const sectionTitles: Record<AppSection, { label: string; heading: string }> = {
   projects: { label: 'Projects', heading: 'Project Management' },
   budget: { label: 'Budget', heading: 'Budget Management' },
   progress: { label: 'Progress', heading: 'Progress Tracking' },
+  settings: { label: 'Settings', heading: 'Application Settings' },
 };
 
 export function TopHeader({ userEmail, onSignOut, activeSection }: TopHeaderProps) {
