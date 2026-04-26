@@ -5,10 +5,11 @@ import { DashboardPage } from './pages/DashboardPage';
 import { AuthPage } from './features/auth/AuthPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { BudgetPage } from './pages/BudgetPage';
+import { ProgressPage } from './pages/ProgressPage';
 import { provisionUserProfile } from './lib/profile';
 import { supabase } from './lib/supabase';
 
-type AppSection = 'dashboard' | 'projects' | 'budget';
+type AppSection = 'dashboard' | 'projects' | 'budget' | 'progress';
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -71,6 +72,7 @@ export function App() {
       {activeSection === 'dashboard' ? <DashboardPage /> : null}
       {activeSection === 'projects' ? <ProjectsPage session={session} /> : null}
       {activeSection === 'budget' ? <BudgetPage session={session} /> : null}
+      {activeSection === 'progress' ? <ProgressPage session={session} /> : null}
     </AppShell>
   );
 }

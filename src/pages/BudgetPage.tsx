@@ -53,12 +53,26 @@ interface EditorState {
   rate: string;
 }
 
+interface ImportRow {
+  code: string;
+  description: string;
+  quantity: number;
+  uom: string;
+  rate: number;
+  parentCode: string | null;
+  kind: LineKind;
+}
+
 function toCurrency(value: number): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 }
 
 function toNumber(value: number): string {
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: 3 }).format(value);
+}
+
+function normalizeHeader(header: string): string {
+  return header.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 }
 
 function mapBudgetError(message: string): string {
@@ -226,17 +240,39 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [uomFilter, setUomFilter] = useState('all');
+  const [lineTypeFilter, setLineTypeFilter] = useState<'all' | LineKind>('all');
+  const [levelFilter, setLevelFilter] = useState('all');
+  const [valueSort, setValueSort] = useState<'code-asc' | 'value-desc'>('code-asc');
   const editorRowRef = useRef<HTMLTableRowElement | null>(null);
   const editorCodeInputRef = useRef<HTMLInputElement | null>(null);
   const activeEditorKey = editorState ? `${editorState.mode}:${editorState.rowId ?? 'new'}:${editorState.parentId}` : null;
 
-  const budgetRows = useMemo(() => {
-    const rolled = buildRollups(budgetItems);
-    return sortByHierarchy(rolled);
-  }, [budgetItems]);
+  const budgetRows = useMemo(() => sortByHierarchy(buildRollups(budgetItems)), [budgetItems]);
+
+  const filteredBudgetRows = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const rows = budgetRows.filter((item) => {
+      const matchesText =
+        normalizedSearch.length === 0 || item.code.toLowerCase().includes(normalizedSearch) || item.description.toLowerCase().includes(normalizedSearch);
+      const matchesLevel = levelFilter === 'all' || item.level === Number(levelFilter);
+      const matchesUom = uomFilter === 'all' || item.uom === uomFilter;
+      const itemType: LineKind = item.quantity === 0 && item.rate === 0 ? 'section' : 'position';
+      const matchesType = lineTypeFilter === 'all' || itemType === lineTypeFilter;
+      return matchesText && matchesLevel && matchesUom && matchesType;
+    });
+
+    if (valueSort === 'value-desc') {
+      return [...rows].sort((a, b) => b.rolledValue - a.rolledValue || a.code.localeCompare(b.code));
+    }
+
+    return rows;
+  }, [budgetRows, levelFilter, lineTypeFilter, searchTerm, uomFilter, valueSort]);
 
   useEffect(() => {
     let isActive = true;
@@ -466,6 +502,120 @@ export function BudgetPage({ session }: BudgetPageProps) {
     setSuccessMessage('Budget line updated successfully.');
   }
 
+  async function handleImportExcel(file: File) {
+    if (!supabase || !selectedProjectId) {
+      setErrorMessage('Select a project before importing.');
+      return;
+    }
+
+    setIsImporting(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
+      if (lines.length < 2) {
+        setErrorMessage('Import file must include a header row and at least one data row.');
+        setIsImporting(false);
+        return;
+      }
+
+      const delimiter = lines[0].includes('	') ? '	' : ',';
+      const headers = lines[0].split(delimiter).map((value) => value.trim());
+      const dataLines = lines.slice(1);
+
+      const parsedRows: ImportRow[] = dataLines.map((line) => {
+        const columns = line.split(delimiter);
+        const normalized = new Map<string, string | number>();
+        headers.forEach((header, index) => normalized.set(normalizeHeader(header), columns[index]?.trim() ?? ''));
+
+        const kindRaw = String(normalized.get('kind') ?? '').toLowerCase();
+        const kind: LineKind = kindRaw === 'section' ? 'section' : 'position';
+
+        const quantity = Number(normalized.get('quantity') ?? normalized.get('budgetquantity') ?? normalized.get('qty') ?? 0);
+        const rate = Number(normalized.get('rate') ?? normalized.get('unitcost') ?? 0);
+
+        return {
+          code: String(normalized.get('code') ?? normalized.get('itemcode') ?? '').trim(),
+          description: String(normalized.get('description') ?? '').trim(),
+          quantity: Number.isFinite(quantity) ? quantity : 0,
+          uom: String(normalized.get('uom') ?? normalized.get('unit') ?? '').trim(),
+          rate: Number.isFinite(rate) ? rate : 0,
+          parentCode: String(normalized.get('parentcode') ?? '').trim() || null,
+          kind,
+        };
+      });
+
+      const validRows = parsedRows.filter((row) => row.code && row.description && row.uom);
+
+      if (validRows.length === 0) {
+        setErrorMessage('No valid rows found. Required columns: code, description, uom (plus quantity/rate when needed).');
+        setIsImporting(false);
+        return;
+      }
+
+      const existingByCode = new Map(budgetItems.map((item) => [item.code.toLowerCase(), item]));
+      const insertedByCode = new Map<string, { id: string; level: number }>();
+      let insertedCount = 0;
+
+      for (const row of validRows) {
+        const codeKey = row.code.toLowerCase();
+        if (existingByCode.has(codeKey) || insertedByCode.has(codeKey)) {
+          continue;
+        }
+
+        let parentId: string | null = null;
+        let level = 1;
+        if (row.parentCode) {
+          const parentKey = row.parentCode.toLowerCase();
+          const parent = insertedByCode.get(parentKey) ?? (existingByCode.get(parentKey) ? { id: existingByCode.get(parentKey)!.id, level: existingByCode.get(parentKey)!.level } : null);
+          if (!parent) {
+            continue;
+          }
+          parentId = parent.id;
+          level = parent.level + 1;
+        }
+
+        const quantity = row.kind === 'section' ? 0 : Math.max(0, row.quantity);
+        const rate = row.kind === 'section' ? 0 : Math.max(0, row.rate);
+
+        const response = await supabase
+          .from('budget_items')
+          .insert({
+            project_id: selectedProjectId,
+            parent_id: parentId,
+            level,
+            code: row.code,
+            description: row.description,
+            quantity,
+            uom: row.uom,
+            rate,
+            created_by: session.user.id,
+          })
+          .select('id,level')
+          .single();
+
+        if (response.error) {
+          setErrorMessage(mapBudgetError(response.error.message));
+          setIsImporting(false);
+          return;
+        }
+
+        insertedByCode.set(codeKey, response.data);
+        insertedCount += 1;
+      }
+
+      await fetchBudgetItems(selectedProjectId);
+      setSuccessMessage(`Excel import completed. ${insertedCount} rows imported.`);
+    } catch {
+      setErrorMessage('Failed to parse Excel file. Upload a valid .xlsx/.xls file with a header row.');
+    }
+
+    setIsImporting(false);
+  }
+
   async function handleDelete(item: BudgetItemRecord) {
     if (!supabase) {
       return;
@@ -571,36 +721,91 @@ export function BudgetPage({ session }: BudgetPageProps) {
   return (
     <div className="space-y-6">
       <section>
-        <h1 className="text-2xl font-semibold text-slate-900">Phase 3: Budget Loading</h1>
-        <p className="mt-1 text-sm text-slate-500">Build and edit your budget hierarchy directly in the table.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">Budget Management</h1>
+        <p className="mt-1 text-sm text-slate-500">Manage hierarchy, filter lines, and import budget data exported from Excel (CSV/TSV).</p>
       </section>
 
       <Card>
-        <label className="flex max-w-sm flex-col gap-2 text-sm font-medium text-slate-700">
-          <span>Project</span>
-          <select
-            className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-            value={selectedProjectId}
-          >
-            {projects.length === 0 ? <option value="">No projects available</option> : null}
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+            <span>Project</span>
+            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}>
+              {projects.length === 0 ? <option value="">No projects available</option> : null}
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+            <span>Search</span>
+            <input className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Code or description" value={searchTerm} />
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+            <span>Line Type</span>
+            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setLineTypeFilter(e.target.value as 'all' | LineKind)} value={lineTypeFilter}>
+              <option value="all">All</option>
+              <option value="section">Sections only</option>
+              <option value="position">Positions only</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+            <span>Level</span>
+            <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setLevelFilter(e.target.value)} value={levelFilter}>
+              <option value="all">All levels</option>
+              {Array.from({ length: 8 }, (_, index) => index + 1).map((level) => (
+                <option key={level} value={String(level)}>
+                  Level {level}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+            <span>UoM + Sort</span>
+            <div className="flex gap-2">
+              <select className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm" onChange={(e) => setUomFilter(e.target.value)} value={uomFilter}>
+                <option value="all">All UoM</option>
+                {units.map((unit) => (
+                  <option key={unit.code} value={unit.code}>
+                    {unit.code}
+                  </option>
+                ))}
+              </select>
+              <select className="h-10 w-full rounded-lg border border-slate-300 bg-white px-2 text-sm" onChange={(e) => setValueSort(e.target.value as 'code-asc' | 'value-desc')} value={valueSort}>
+                <option value="code-asc">Code sort</option>
+                <option value="value-desc">Top value</option>
+              </select>
+            </div>
+          </label>
+        </div>
       </Card>
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Budget Hierarchy</h2>
-            <p className="text-sm text-slate-500">{budgetRows.length} lines</p>
+            <p className="text-sm text-slate-500">{filteredBudgetRows.length} shown / {budgetRows.length} total</p>
           </div>
-
           <div className="flex flex-wrap items-center gap-2">
+            <label className="cursor-pointer">
+              <input
+                accept=".csv,.txt"
+                className="hidden"
+                disabled={!selectedProjectId || isImporting}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    void handleImportExcel(file);
+                  }
+                  event.currentTarget.value = '';
+                }}
+                type="file"
+              />
+              <span className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
+                {isImporting ? 'Importing…' : 'Import Excel File'}
+              </span>
+            </label>
             <Button disabled={!selectedProjectId || isSaving} onClick={() => startCreate('section', null)} type="button" variant="secondary">
               Add Section
             </Button>
@@ -613,42 +818,24 @@ export function BudgetPage({ session }: BudgetPageProps) {
         {errorMessage ? <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
-        {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading budget module…</p> : null}
-
-        {!isLoading && budgetRows.length === 0 && !(editorState?.mode === 'create' && editorState.parentId === '') ? (
-          <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
-            No budget entries yet. Add a section or position, then use row buttons to add nested levels.
-          </p>
-        ) : null}
-
-        {!isLoading && (budgetRows.length > 0 || (editorState?.mode === 'create' && editorState.parentId === '')) ? (
+        {!isLoading && filteredBudgetRows.length > 0 ? (
           <div className="mt-4 overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-3">Code</th>
-                  <th className="py-2 pr-3">Description</th>
-                  <th className="py-2 pr-3">Qty</th>
-                  <th className="py-2 pr-3">UoM</th>
-                  <th className="py-2 pr-3">Rate</th>
-                  <th className="py-2 pr-3">Line Value</th>
-                  <th className="py-2 pr-3">Rolled Qty</th>
-                  <th className="py-2 pr-3">Rolled Value</th>
-                  <th className="py-2">Actions</th>
+                  <th className="py-2 pr-3">Code</th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">Qty</th><th className="py-2 pr-3">UoM</th><th className="py-2 pr-3">Rate</th><th className="py-2 pr-3">Line Value</th><th className="py-2 pr-3">Rolled Qty</th><th className="py-2 pr-3">Rolled Value</th><th className="py-2">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {editorState?.mode === 'create' && editorState.parentId === '' ? renderInlineEditorRow('new-root-inline-row') : null}
-                {budgetRows.map((item) => (
+                {filteredBudgetRows.map((item) => (
                   <Fragment key={item.id}>
                     {editorState?.mode === 'edit' && editorState.rowId === item.id ? (
                       renderInlineEditorRow(`edit-inline-row-${item.id}`)
                     ) : (
                       <tr className="border-b border-slate-100" key={item.id}>
                         <td className="py-3 pr-3 font-medium text-slate-800">{item.code}</td>
-                        <td className="py-3 pr-3 text-slate-600" style={{ paddingLeft: `${(item.level - 1) * 24 + 4}px` }}>
-                          {item.description}
-                        </td>
+                        <td className="py-3 pr-3 text-slate-600" style={{ paddingLeft: `${(item.level - 1) * 24 + 4}px` }}>{item.description}</td>
                         <td className="py-3 pr-3 text-slate-600">{toNumber(item.quantity)}</td>
                         <td className="py-3 pr-3 text-slate-600">{item.uom}</td>
                         <td className="py-3 pr-3 text-slate-600">{toCurrency(item.rate)}</td>
@@ -657,35 +844,10 @@ export function BudgetPage({ session }: BudgetPageProps) {
                         <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
                         <td className="py-3 whitespace-nowrap">
                           <div className="flex flex-nowrap items-center gap-1">
-                            <Button onClick={() => startEdit(item)} className="shrink-0 px-2 py-1 text-xs" type="button" variant="ghost">
-                              Edit
-                            </Button>
-                            <Button
-                              disabled={item.level >= 8}
-                              onClick={() => startCreate('section', item.id)}
-                              className="shrink-0 px-2 py-1 text-xs"
-                              type="button"
-                              variant="secondary"
-                            >
-                              + Section
-                            </Button>
-                            <Button
-                              disabled={item.level >= 8}
-                              onClick={() => startCreate('position', item.id)}
-                              className="shrink-0 px-2 py-1 text-xs"
-                              type="button"
-                            >
-                              + Position
-                            </Button>
-                            <Button
-                              className="shrink-0 px-2 py-1 text-xs"
-                              disabled={deletingItemId === item.id}
-                              onClick={() => handleDelete(item)}
-                              type="button"
-                              variant="danger"
-                            >
-                              {deletingItemId === item.id ? 'Deleting…' : 'Delete'}
-                            </Button>
+                            <Button className="shrink-0 px-2 py-1 text-xs" onClick={() => startEdit(item)} type="button" variant="ghost">Edit</Button>
+                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={item.level >= 8} onClick={() => startCreate('section', item.id)} type="button" variant="secondary">+ Section</Button>
+                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} type="button">+ Position</Button>
+                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={deletingItemId === item.id} onClick={() => handleDelete(item)} type="button" variant="danger">{deletingItemId === item.id ? 'Deleting…' : 'Delete'}</Button>
                           </div>
                         </td>
                       </tr>
