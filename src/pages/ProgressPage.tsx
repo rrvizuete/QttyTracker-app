@@ -59,6 +59,13 @@ export function ProgressPage({ session }: ProgressPageProps) {
     return budgetItems.filter((item) => item.code.toLowerCase().includes(term) || item.description.toLowerCase().includes(term));
   }, [budgetItems, itemSearch]);
 
+  const codeOrderedItems = useMemo(() => [...filteredBudgetItems].sort((a, b) => a.code.localeCompare(b.code)), [filteredBudgetItems]);
+
+  const descriptionOrderedItems = useMemo(
+    () => [...filteredBudgetItems].sort((a, b) => a.description.localeCompare(b.description) || a.code.localeCompare(b.code)),
+    [filteredBudgetItems],
+  );
+
   const filteredHistory = useMemo(() => {
     if (historyItemFilter === 'all') {
       return progressRows;
@@ -215,18 +222,34 @@ export function ProgressPage({ session }: ProgressPageProps) {
               <span>Search Budget Item</span>
               <input className="h-10 rounded-lg border border-slate-300 px-3 text-sm" onChange={(e) => setItemSearch(e.target.value)} placeholder="Code or description" value={itemSearch} />
             </label>
-            <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
-              <span>Item Code</span>
-              <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setSelectedBudgetItemId(e.target.value)} required value={selectedBudgetItemId}>
-                <option value="">Select budget item</option>
-                {filteredBudgetItems.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.code} — {item.description}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">Description: {selectedItem?.description ?? '—'} ({selectedItem?.uom ?? '—'})</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                <span>Select by Code</span>
+                <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setSelectedBudgetItemId(e.target.value)} required value={selectedBudgetItemId}>
+                  <option value="">Select code</option>
+                  {codeOrderedItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.code}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
+                <span>Select by Description</span>
+                <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(e) => setSelectedBudgetItemId(e.target.value)} required value={selectedBudgetItemId}>
+                  <option value="">Select description</option>
+                  {descriptionOrderedItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.description}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              Item: {selectedItem?.code ?? '—'} — {selectedItem?.description ?? '—'} ({selectedItem?.uom ?? '—'})
+            </p>
             <label className="flex flex-col gap-2 text-sm font-medium text-slate-700">
               <span>Reporter</span>
               <input className="h-10 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm" readOnly value={session.user.email ?? session.user.id} />
