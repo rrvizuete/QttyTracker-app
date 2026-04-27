@@ -45,6 +45,31 @@ interface ProgressEditor {
   remarks: string;
 }
 
+function formatDateInputFromLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatReportingDate(dateValue: string): string {
+  const [yearRaw, monthRaw, dayRaw] = dateValue.split('-');
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return dateValue;
+  }
+
+  return new Date(year, month - 1, day).toLocaleDateString();
+}
+
+function toRoundedString(value: number, decimals: number): string {
+  const rounded = Number(value.toFixed(decimals));
+  return String(rounded);
+}
+
 export function ProgressPage({ session }: ProgressPageProps) {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
@@ -61,6 +86,78 @@ export function ProgressPage({ session }: ProgressPageProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const budgetItemLookup = useMemo(() => new Map(budgetItems.map((item) => [item.id, item])), [budgetItems]);
+
+  const getBudgetQuantity = useCallback((budgetItemId: string): number | null => {
+    const quantity = budgetItemLookup.get(budgetItemId)?.quantity;
+    if (!Number.isFinite(quantity) || !quantity || quantity <= 0) {
+      return null;
+    }
+    return quantity;
+  }, [budgetItemLookup]);
+
+  const calculatePercentFromInstalled = useCallback((installedQuantity: string, budgetItemId: string): string | null => {
+    const budgetQty = getBudgetQuantity(budgetItemId);
+    const installed = Number(installedQuantity);
+    if (!budgetQty || !Number.isFinite(installed) || installed < 0) {
+      return null;
+    }
+
+    const percent = (installed / budgetQty) * 100;
+    return toRoundedString(percent, 2);
+  }, [getBudgetQuantity]);
+
+  const calculateInstalledFromPercent = useCallback((percentComplete: string, budgetItemId: string): string | null => {
+    const budgetQty = getBudgetQuantity(budgetItemId);
+    const percent = Number(percentComplete);
+    if (!budgetQty || !Number.isFinite(percent) || percent < 0) {
+      return null;
+    }
+
+    const installedQty = (percent / 100) * budgetQty;
+    return toRoundedString(installedQty, 3);
+  }, [getBudgetQuantity]);
+
+  const handleInstalledQuantityChange = useCallback((value: string) => {
+    setEditingRow((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const next: ProgressEditor = { ...current, installed_quantity: value };
+      if (!value.trim()) {
+        next.percent_complete = '';
+        return next;
+      }
+
+      const calculatedPercent = calculatePercentFromInstalled(value, next.budget_item_id);
+      if (calculatedPercent !== null) {
+        next.percent_complete = calculatedPercent;
+      }
+
+      return next;
+    });
+  }, [calculatePercentFromInstalled]);
+
+  const handlePercentCompleteChange = useCallback((value: string) => {
+    setEditingRow((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const next: ProgressEditor = { ...current, percent_complete: value };
+      if (!value.trim()) {
+        next.installed_quantity = '';
+        return next;
+      }
+
+      const calculatedInstalled = calculateInstalledFromPercent(value, next.budget_item_id);
+      if (calculatedInstalled !== null) {
+        next.installed_quantity = calculatedInstalled;
+      }
+
+      return next;
+    });
+  }, [calculateInstalledFromPercent]);
 
   const matchingCodeItems = useMemo(() => {
     if (!editingRow) {
@@ -198,12 +295,20 @@ export function ProgressPage({ session }: ProgressPageProps) {
         return null;
       }
 
-      return {
+      const next: ProgressEditor = {
         ...base,
         budget_item_id: itemId,
         itemQuery,
         descriptionQuery,
       };
+
+      if (next.installed_quantity.trim()) {
+        next.percent_complete = calculatePercentFromInstalled(next.installed_quantity, itemId) ?? next.percent_complete;
+      } else if (next.percent_complete.trim()) {
+        next.installed_quantity = calculateInstalledFromPercent(next.percent_complete, itemId) ?? next.installed_quantity;
+      }
+
+      return next;
     });
   }
 
@@ -244,7 +349,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
       budget_item_id: '',
       itemQuery: '',
       descriptionQuery: '',
-      reporting_date: new Date().toISOString().slice(0, 10),
+      reporting_date: formatDateInputFromLocalDate(new Date()),
       installed_quantity: '',
       percent_complete: '',
       remarks: '',
@@ -531,8 +636,8 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       </div>
                     </td>
                     <td className="py-2 pr-3 text-slate-600">{budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—'}</td>
-                    <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} /></td>
-                    <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, percent_complete: e.target.value } : c))} step="0.01" type="number" value={editingRow.percent_complete} /></td>
+                    <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => handleInstalledQuantityChange(e.target.value)} step="0.001" type="number" value={editingRow.installed_quantity} /></td>
+                    <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => handlePercentCompleteChange(e.target.value)} step="0.01" type="number" value={editingRow.percent_complete} /></td>
                     <td className="py-2 pr-3"><input className="h-8 w-full rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, remarks: e.target.value } : c))} value={editingRow.remarks} /></td>
                     <td className="py-2 whitespace-nowrap">
                       <div className="flex gap-1">
@@ -550,7 +655,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
                           <input className="h-8 rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, reporting_date: e.target.value } : c))} type="date" value={editingRow.reporting_date} />
-                        ) : new Date(row.reporting_date).toLocaleDateString()}
+                        ) : formatReportingDate(row.reporting_date)}
                       </td>
                       <td className="py-3 pr-3 font-medium text-slate-800">
                         {isEditing ? (
@@ -617,12 +722,12 @@ export function ProgressPage({ session }: ProgressPageProps) {
                       <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—' : rowMeta.uom}</td>
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
-                          <input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} />
+                          <input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => handleInstalledQuantityChange(e.target.value)} step="0.001" type="number" value={editingRow.installed_quantity} />
                         ) : row.installed_quantity}
                       </td>
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
-                          <input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, percent_complete: e.target.value } : c))} step="0.01" type="number" value={editingRow.percent_complete} />
+                          <input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => handlePercentCompleteChange(e.target.value)} step="0.01" type="number" value={editingRow.percent_complete} />
                         ) : row.percent_complete ?? '—'}
                       </td>
                       <td className="py-3 pr-3 text-slate-600">
