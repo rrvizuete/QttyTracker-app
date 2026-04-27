@@ -594,7 +594,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
       for (const row of validRows) {
         const codeKey = row.code.toLowerCase();
-        if (existingByCode.has(codeKey) || insertedByCode.has(codeKey)) {
+        if (existingByCode.has(codeKey)) {
           continue;
         }
 
@@ -751,7 +751,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       <section>
         <h1 className="text-2xl font-semibold text-slate-900">Budget Management</h1>
         <p className="mt-1 text-sm text-slate-500">Manage hierarchy, inline edits, and CSV/TSV imports for budget data.</p>
@@ -771,7 +771,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
         </label>
       </Card>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Budget Hierarchy</h2>
@@ -819,9 +819,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         {!isLoading && filteredBudgetRows.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">
                     <div className="space-y-1">
