@@ -661,7 +661,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
       await fetchBudgetItems(selectedProjectId);
       setSuccessMessage(`CSV import completed. ${insertedCount} rows imported.`);
     } catch {
-      setErrorMessage('Failed to parse CSV/TSV file. Upload a valid file with a header row.');
+      setErrorMessage('Failed to parse CSV file. Upload a valid file with a header row.');
     }
 
     setIsImporting(false);
@@ -773,7 +773,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
     <div className="flex h-full min-h-0 flex-col gap-6">
       <section className="shrink-0">
         <h1 className="text-2xl font-semibold text-slate-900">Budget Management</h1>
-        <p className="mt-1 text-sm text-slate-500">Manage hierarchy, inline edits, and CSV/TSV imports for budget data.</p>
+        <p className="mt-1 text-sm text-slate-500">Manage hierarchy, inline edits, and CSV imports for budget data.</p>
       </section>
 
       <Card className="shrink-0">
@@ -939,7 +939,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
       {showImportHelp ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
           <div className="w-full max-w-2xl rounded-xl bg-white p-5 shadow-2xl">
-            <h3 className="text-lg font-semibold text-slate-900">CSV/TSV import structure</h3>
+            <h3 className="text-lg font-semibold text-slate-900">CSV import structure</h3>
             <p className="mt-2 text-sm text-slate-600">Required columns: <strong>code</strong>, <strong>description</strong>, <strong>uom</strong>. Optional: quantity, rate, parentCode, kind.</p>
             <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-600">
               <li><strong>kind</strong>: section or position (default: position).</li>
