@@ -320,9 +320,9 @@ export function SettingsPage({ session }: SettingsPageProps) {
           ) : sortedUnits.length === 0 ? (
             <p className="mt-6 rounded-md border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500">No units defined yet. Add one to start building your UoM catalog.</p>
           ) : (
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 max-h-[65vh] overflow-auto">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500 [&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-slate-50">
                   <tr>
                     <th className="px-3 py-2 text-left font-semibold">Code</th>
                     <th className="px-3 py-2 text-left font-semibold">Label</th>

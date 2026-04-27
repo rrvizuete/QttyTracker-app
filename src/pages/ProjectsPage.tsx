@@ -277,9 +277,9 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
           {isLoading ? <p className="mt-4 text-sm text-slate-500">Loading projects…</p> : null}
 
           {!isLoading && projects.length > 0 ? (
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 max-h-[65vh] overflow-auto">
               <table className="min-w-full text-left text-sm">
-                <thead>
+                <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-white">
                   <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                     <th className="py-2 pr-3">
                       <div className="space-y-1">
