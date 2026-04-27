@@ -437,9 +437,9 @@ export function ProgressPage({ session }: ProgressPageProps) {
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         {!isLoading ? (
-          <div className="mt-4 min-h-0 flex-1 overflow-auto">
+          <div className="mt-4 min-h-0 flex-1 overflow-auto max-h-[70vh]">
             <table className="min-w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-white">
+              <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">
