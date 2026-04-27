@@ -23,6 +23,10 @@ interface UnitFormState {
   isActive: boolean;
 }
 
+interface EditingUnitState extends UnitFormState {
+  originalCode: string;
+}
+
 const initialUnitForm: UnitFormState = {
   code: '',
   label: '',
@@ -39,6 +43,10 @@ function mapSettingsError(message: string): string {
     return 'Unit update was blocked by RLS. Confirm your user has permissions to edit settings.';
   }
 
+  if (message.toLowerCase().includes('foreign key')) {
+    return 'This UoM is used by budget or progress data and cannot be deleted.';
+  }
+
   return message;
 }
 
@@ -51,7 +59,7 @@ export function SettingsPage({ session }: SettingsPageProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [formState, setFormState] = useState<UnitFormState>(initialUnitForm);
-  const [editingUnit, setEditingUnit] = useState<UnitFormState | null>(null);
+  const [editingUnit, setEditingUnit] = useState<EditingUnitState | null>(null);
 
   const sortedUnits = useMemo(
     () => [...units].sort((a, b) => a.sort_order - b.sort_order || a.label.localeCompare(b.label)),
@@ -164,13 +172,27 @@ export function SettingsPage({ session }: SettingsPageProps) {
     const response = await supabase
       .from('units_of_measure')
       .update({
+        code,
         label,
         sort_order: sortOrder,
         is_active: editingUnit.isActive,
       })
-      .eq('code', code)
+      .eq('code', editingUnit.originalCode)
       .select('code,label,sort_order,is_active')
       .single();
+
+    if (!response.error && code !== editingUnit.originalCode) {
+      const remapResponse = await supabase
+        .from('budget_items')
+        .update({ uom: code })
+        .eq('uom', editingUnit.originalCode);
+
+      if (remapResponse.error) {
+        setSavingCode(null);
+        setErrorMessage(`UoM code was updated, but Budget remap failed: ${mapSettingsError(remapResponse.error.message)}`);
+        return;
+      }
+    }
 
     setSavingCode(null);
 
@@ -179,9 +201,11 @@ export function SettingsPage({ session }: SettingsPageProps) {
       return;
     }
 
-    setUnits((current) => current.map((unit) => (unit.code === response.data.code ? response.data : unit)));
+    setUnits((current) =>
+      current.map((unit) => (unit.code === editingUnit.originalCode ? response.data : unit)),
+    );
     setEditingUnit(null);
-    setSuccessMessage(`Unit ${response.data.code} updated successfully.`);
+    setSuccessMessage(`Unit ${editingUnit.originalCode} updated to ${response.data.code}.`);
   }
 
   async function handleDeleteUnit(unit: UnitRecord) {
@@ -197,6 +221,24 @@ export function SettingsPage({ session }: SettingsPageProps) {
     setDeletingCode(unit.code);
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    const usageResponse = await supabase
+      .from('budget_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('uom', unit.code);
+
+    if (usageResponse.error) {
+      setDeletingCode(null);
+      setErrorMessage(mapSettingsError(usageResponse.error.message));
+      return;
+    }
+
+    const usageCount = usageResponse.count ?? 0;
+    if (usageCount > 0) {
+      setDeletingCode(null);
+      setErrorMessage(`Unit ${unit.code} is used in ${usageCount} budget item(s). Remap those entries before deleting this UoM.`);
+      return;
+    }
 
     const response = await supabase.from('units_of_measure').delete().eq('code', unit.code);
 
@@ -291,11 +333,26 @@ export function SettingsPage({ session }: SettingsPageProps) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {sortedUnits.map((unit) => {
-                    const isEditing = editingUnit?.code === unit.code;
+                    const isEditing = editingUnit?.originalCode === unit.code;
 
                     return (
                       <tr key={unit.code} className="hover:bg-slate-50/60">
-                        <td className="px-3 py-2 font-semibold text-slate-800">{unit.code}</td>
+                        <td className="px-3 py-2 font-semibold text-slate-800">
+                          {isEditing ? (
+                            <input
+                              className="h-8 w-24 rounded border border-slate-300 px-2 text-sm"
+                              maxLength={12}
+                              onChange={(event) =>
+                                setEditingUnit((current) =>
+                                  current ? { ...current, code: event.target.value.toUpperCase() } : current,
+                                )
+                              }
+                              value={editingUnit.code}
+                            />
+                          ) : (
+                            unit.code
+                          )}
+                        </td>
                         <td className="px-3 py-2 text-slate-700">
                           {isEditing ? (
                             <input
@@ -349,6 +406,7 @@ export function SettingsPage({ session }: SettingsPageProps) {
                                 <Button
                                   onClick={() =>
                                     setEditingUnit({
+                                      originalCode: unit.code,
                                       code: unit.code,
                                       label: unit.label,
                                       sortOrder: String(unit.sort_order),
