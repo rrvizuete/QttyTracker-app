@@ -82,6 +82,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
   const [openPicker, setOpenPicker] = useState<'item' | 'description' | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [budgetFilter, setBudgetFilter] = useState('all');
+  const [dateSortDirection, setDateSortDirection] = useState<'asc' | 'desc'>('desc');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -201,20 +202,31 @@ export function ProgressPage({ session }: ProgressPageProps) {
   const filteredHistory = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return progressRows.filter((row) => {
-      const matchesFilter = budgetFilter === 'all' || row.budget_item_id === budgetFilter;
-      const meta = getRowItemMeta(row);
-      const remark = (row.remarks ?? '').toLowerCase();
-      const matchesSearch =
-        term.length === 0 ||
-        meta.code.toLowerCase().includes(term) ||
-        meta.description.toLowerCase().includes(term) ||
-        meta.uom.toLowerCase().includes(term) ||
-        remark.includes(term);
+    return progressRows
+      .filter((row) => {
+        const matchesFilter = budgetFilter === 'all' || row.budget_item_id === budgetFilter;
+        const meta = getRowItemMeta(row);
+        const remark = (row.remarks ?? '').toLowerCase();
+        const matchesSearch =
+          term.length === 0 ||
+          meta.code.toLowerCase().includes(term) ||
+          meta.description.toLowerCase().includes(term) ||
+          meta.uom.toLowerCase().includes(term) ||
+          remark.includes(term);
 
-      return matchesFilter && matchesSearch;
-    });
-  }, [budgetFilter, progressRows, searchTerm, getRowItemMeta]);
+        return matchesFilter && matchesSearch;
+      })
+      .toSorted((a, b) => {
+        const dateDiff = a.reporting_date.localeCompare(b.reporting_date);
+        if (dateDiff !== 0) {
+          return dateSortDirection === 'asc' ? dateDiff : -dateDiff;
+        }
+
+        return dateSortDirection === 'asc'
+          ? a.created_at.localeCompare(b.created_at)
+          : b.created_at.localeCompare(a.created_at);
+      });
+  }, [budgetFilter, dateSortDirection, progressRows, searchTerm, getRowItemMeta]);
 
   useEffect(() => {
     let isActive = true;
@@ -546,7 +558,19 @@ export function ProgressPage({ session }: ProgressPageProps) {
             <table className="min-w-full text-left text-sm">
               <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
-                  <th className="py-2 pr-3">Date</th>
+                  <th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Date</p>
+                      <select
+                        className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case"
+                        onChange={(e) => setDateSortDirection(e.target.value as 'asc' | 'desc')}
+                        value={dateSortDirection}
+                      >
+                        <option value="desc">Newest to Older</option>
+                        <option value="asc">Older to Newest</option>
+                      </select>
+                    </div>
+                  </th>
                   <th className="py-2 pr-3">
                     <div className="space-y-1">
                       <p>Item</p>
