@@ -224,6 +224,10 @@ export function ProgressPage({ session }: ProgressPageProps) {
     );
   }
 
+  function normalizeLookupText(value: string): string {
+    return value.trim().toLowerCase();
+  }
+
   function handlePickerSelect(item: BudgetItemOption) {
     setEditorFromBudgetItem(item.id);
     setOpenPicker(null);
@@ -280,7 +284,20 @@ export function ProgressPage({ session }: ProgressPageProps) {
       resolveItemFromQuery(editingRow.itemQuery) ??
       resolveItemFromQuery(editingRow.descriptionQuery) ??
       null;
+    const selectedItem = budgetItemLookup.get(editingRow.budget_item_id);
+    const selectedComposite = selectedItem ? `${selectedItem.code} — ${selectedItem.description}` : '';
     const budgetItemId = resolvedItem?.id ?? editingRow.budget_item_id;
+    const userTypedValue = editingRow.itemQuery.trim() || editingRow.descriptionQuery.trim();
+
+    if (
+      userTypedValue &&
+      !resolvedItem &&
+      normalizeLookupText(editingRow.itemQuery) !== normalizeLookupText(selectedComposite) &&
+      normalizeLookupText(editingRow.descriptionQuery) !== normalizeLookupText(selectedItem?.description ?? '')
+    ) {
+      setErrorMessage('The entered budget item was not found. Select a valid budget item from suggestions before saving.');
+      return;
+    }
 
     if (!budgetItemLookup.has(budgetItemId)) {
       setErrorMessage('Select a valid budget item or description from the suggestions before saving.');
