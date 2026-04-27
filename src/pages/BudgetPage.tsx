@@ -75,6 +75,37 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 }
 
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+
+    if (character === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (character === delimiter && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+      continue;
+    }
+
+    current += character;
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
 function mapBudgetError(message: string): string {
   if (message.includes('public.budget_items') && message.includes('schema cache')) {
     return 'Budget items table is missing in Supabase. Run supabase migrations, then refresh.';
@@ -524,11 +555,11 @@ export function BudgetPage({ session }: BudgetPageProps) {
       }
 
       const delimiter = lines[0].includes('	') ? '	' : ',';
-      const headers = lines[0].split(delimiter).map((value) => value.trim());
+      const headers = parseDelimitedLine(lines[0], delimiter).map((value) => value.trim());
       const dataLines = lines.slice(1);
 
       const parsedRows: ImportRow[] = dataLines.map((line) => {
-        const columns = line.split(delimiter);
+        const columns = parseDelimitedLine(line, delimiter);
         const normalized = new Map<string, string | number>();
         headers.forEach((header, index) => normalized.set(normalizeHeader(header), columns[index]?.trim() ?? ''));
 
@@ -553,6 +584,23 @@ export function BudgetPage({ session }: BudgetPageProps) {
 
       if (validRows.length === 0) {
         setErrorMessage('No valid rows found. Required columns: code, description, uom (plus quantity/rate when needed).');
+        setIsImporting(false);
+        return;
+      }
+
+      const duplicatedCodes = new Set<string>();
+      const seenCodes = new Set<string>();
+      for (const row of validRows) {
+        const codeKey = row.code.toLowerCase();
+        if (seenCodes.has(codeKey)) {
+          duplicatedCodes.add(row.code);
+          continue;
+        }
+        seenCodes.add(codeKey);
+      }
+
+      if (duplicatedCodes.size > 0) {
+        setErrorMessage(`CSV contains duplicated code values: ${Array.from(duplicatedCodes).sort((a, b) => a.localeCompare(b)).join(', ')}. Remove duplicates and import again.`);
         setIsImporting(false);
         return;
       }
@@ -720,13 +768,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <section>
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      <section className="shrink-0">
         <h1 className="text-2xl font-semibold text-slate-900">Budget Management</h1>
         <p className="mt-1 text-sm text-slate-500">Manage hierarchy, inline edits, and CSV/TSV imports for budget data.</p>
       </section>
 
-      <Card>
+      <Card className="shrink-0">
         <label className="flex max-w-sm flex-col gap-2 text-sm font-medium text-slate-700">
           <span>Project</span>
           <select className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm" onChange={(event) => setSelectedProjectId(event.target.value)} value={selectedProjectId}>
@@ -740,7 +788,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
         </label>
       </Card>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Budget Hierarchy</h2>
@@ -762,7 +810,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
                 type="file"
               />
               <span className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                {isImporting ? 'Importing…' : 'Import CSV/TSV'}
+                {isImporting ? 'Importing…' : 'Import CSV'}
               </span>
             </label>
             <Button onClick={() => setShowImportHelp(true)} type="button" variant="ghost">
@@ -788,9 +836,9 @@ export function BudgetPage({ session }: BudgetPageProps) {
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         {!isLoading && filteredBudgetRows.length > 0 ? (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">
                     <div className="space-y-1">

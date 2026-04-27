@@ -239,12 +239,11 @@ export function ProgressPage({ session }: ProgressPageProps) {
       return;
     }
 
-    const firstItem = budgetItems[0];
     setEditingRow({
       id: null,
-      budget_item_id: firstItem.id,
-      itemQuery: `${firstItem.code} — ${firstItem.description}`,
-      descriptionQuery: firstItem.description,
+      budget_item_id: '',
+      itemQuery: '',
+      descriptionQuery: '',
       reporting_date: new Date().toISOString().slice(0, 10),
       installed_quantity: '',
       percent_complete: '',
@@ -288,6 +287,11 @@ export function ProgressPage({ session }: ProgressPageProps) {
     const selectedComposite = selectedItem ? `${selectedItem.code} — ${selectedItem.description}` : '';
     const budgetItemId = resolvedItem?.id ?? editingRow.budget_item_id;
     const userTypedValue = editingRow.itemQuery.trim() || editingRow.descriptionQuery.trim();
+
+    if (!userTypedValue && !budgetItemId) {
+      setErrorMessage('Select a budget item before saving.');
+      return;
+    }
 
     if (
       userTypedValue &&
@@ -406,13 +410,13 @@ export function ProgressPage({ session }: ProgressPageProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <section>
+    <div className="flex h-full min-h-0 flex-col gap-6">
+      <section className="shrink-0">
         <h1 className="text-2xl font-semibold text-slate-900">Progress Tracking</h1>
         <p className="mt-1 text-sm text-slate-500">Manage and update progress entries directly from the table.</p>
       </section>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <label className="flex min-w-64 flex-col gap-2 text-sm font-medium text-slate-700">
             <span>Project</span>
@@ -433,9 +437,9 @@ export function ProgressPage({ session }: ProgressPageProps) {
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         {!isLoading ? (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">
