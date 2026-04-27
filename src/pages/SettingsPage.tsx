@@ -181,6 +181,19 @@ export function SettingsPage({ session }: SettingsPageProps) {
       .select('code,label,sort_order,is_active')
       .single();
 
+    if (!response.error && code !== editingUnit.originalCode) {
+      const remapResponse = await supabase
+        .from('budget_items')
+        .update({ uom: code })
+        .eq('uom', editingUnit.originalCode);
+
+      if (remapResponse.error) {
+        setSavingCode(null);
+        setErrorMessage(`UoM code was updated, but Budget remap failed: ${mapSettingsError(remapResponse.error.message)}`);
+        return;
+      }
+    }
+
     setSavingCode(null);
 
     if (response.error) {
@@ -208,6 +221,24 @@ export function SettingsPage({ session }: SettingsPageProps) {
     setDeletingCode(unit.code);
     setErrorMessage(null);
     setSuccessMessage(null);
+
+    const usageResponse = await supabase
+      .from('budget_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('uom', unit.code);
+
+    if (usageResponse.error) {
+      setDeletingCode(null);
+      setErrorMessage(mapSettingsError(usageResponse.error.message));
+      return;
+    }
+
+    const usageCount = usageResponse.count ?? 0;
+    if (usageCount > 0) {
+      setDeletingCode(null);
+      setErrorMessage(`Unit ${unit.code} is used in ${usageCount} budget item(s). Remap those entries before deleting this UoM.`);
+      return;
+    }
 
     const response = await supabase.from('units_of_measure').delete().eq('code', unit.code);
 
