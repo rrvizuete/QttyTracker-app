@@ -276,6 +276,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [descriptionSearchTerm, setDescriptionSearchTerm] = useState('');
   const [uomFilter, setUomFilter] = useState('all');
   const [lineTypeFilter, setLineTypeFilter] = useState<'all' | LineKind>('all');
   const [levelFilter, setLevelFilter] = useState('all');
@@ -288,15 +289,16 @@ export function BudgetPage({ session }: BudgetPageProps) {
   const budgetRows = useMemo(() => sortByHierarchy(buildRollups(budgetItems)), [budgetItems]);
 
   const filteredBudgetRows = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedCodeSearch = searchTerm.trim().toLowerCase();
+    const normalizedDescriptionSearch = descriptionSearchTerm.trim().toLowerCase();
     const rows = budgetRows.filter((item) => {
-      const matchesText =
-        normalizedSearch.length === 0 || item.code.toLowerCase().includes(normalizedSearch) || item.description.toLowerCase().includes(normalizedSearch);
+      const matchesCode = normalizedCodeSearch.length === 0 || item.code.toLowerCase().includes(normalizedCodeSearch);
+      const matchesDescription = normalizedDescriptionSearch.length === 0 || item.description.toLowerCase().includes(normalizedDescriptionSearch);
       const matchesLevel = levelFilter === 'all' || item.level === Number(levelFilter);
       const matchesUom = uomFilter === 'all' || item.uom === uomFilter;
       const itemType: LineKind = item.quantity === 0 && item.rate === 0 ? 'section' : 'position';
       const matchesType = lineTypeFilter === 'all' || itemType === lineTypeFilter;
-      return matchesText && matchesLevel && matchesUom && matchesType;
+      return matchesCode && matchesDescription && matchesLevel && matchesUom && matchesType;
     });
 
     if (valueSort === 'value-desc') {
@@ -304,7 +306,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
     }
 
     return rows;
-  }, [budgetRows, levelFilter, lineTypeFilter, searchTerm, uomFilter, valueSort]);
+  }, [budgetRows, descriptionSearchTerm, levelFilter, lineTypeFilter, searchTerm, uomFilter, valueSort]);
 
   useEffect(() => {
     let isActive = true;
@@ -835,7 +837,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
         {errorMessage ? <p className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p> : null}
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
-        {!isLoading && filteredBudgetRows.length > 0 ? (
+        {!isLoading ? (
           <div className="mt-4 min-h-0 flex-1 overflow-auto max-h-[70vh]">
             <table className="min-w-full text-left text-sm">
               <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-10 [&_th]:bg-white">
@@ -845,7 +847,12 @@ export function BudgetPage({ session }: BudgetPageProps) {
                       <p>Code</p>
                       <input className="h-7 w-full rounded border border-slate-300 px-2 text-xs normal-case" onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search" value={searchTerm} />
                     </div>
-                  </th><th className="py-2 pr-3">Description</th><th className="py-2 pr-3">
+                  </th><th className="py-2 pr-3">
+                    <div className="space-y-1">
+                      <p>Description</p>
+                      <input className="h-7 w-full rounded border border-slate-300 px-2 text-xs normal-case" onChange={(e) => setDescriptionSearchTerm(e.target.value)} placeholder="Search" value={descriptionSearchTerm} />
+                    </div>
+                  </th><th className="py-2 pr-3">
                     <div className="space-y-1">
                       <p>Qty</p>
                       <select className="h-7 w-full rounded border border-slate-300 bg-white px-1 text-xs normal-case" onChange={(e) => setLineTypeFilter(e.target.value as 'all' | LineKind)} value={lineTypeFilter}>
@@ -908,8 +915,6 @@ export function BudgetPage({ session }: BudgetPageProps) {
                         <td className="py-3 whitespace-nowrap">
                           <div className="flex flex-nowrap items-center gap-1">
                             <Button className="shrink-0 px-2 py-1 text-xs" onClick={() => startEdit(item)} type="button" variant="ghost">Edit</Button>
-                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={item.level >= 8} onClick={() => startCreate('section', item.id)} type="button" variant="secondary">+ Section</Button>
-                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={item.level >= 8} onClick={() => startCreate('position', item.id)} type="button">+ Position</Button>
                             <Button className="shrink-0 px-2 py-1 text-xs" disabled={deletingItemId === item.id} onClick={() => handleDelete(item)} type="button" variant="danger">{deletingItemId === item.id ? 'Deleting…' : 'Delete'}</Button>
                           </div>
                         </td>
@@ -918,6 +923,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
                     {editorState?.mode === 'create' && editorState.parentId === item.id ? renderInlineEditorRow(`new-inline-row-${item.id}`) : null}
                   </Fragment>
                 ))}
+                {filteredBudgetRows.length === 0 ? (
+                  <tr>
+                    <td className="py-6 text-center text-sm text-slate-500" colSpan={9}>
+                      No budget lines match the current filters.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
