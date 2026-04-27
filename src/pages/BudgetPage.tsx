@@ -75,6 +75,37 @@ function normalizeHeader(header: string): string {
   return header.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
 }
 
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const columns: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+
+    if (char === '"') {
+      if (inQuotes && line[index + 1] === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (!inQuotes && char === delimiter) {
+      columns.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  columns.push(current);
+  return columns;
+}
+
 function mapBudgetError(message: string): string {
   if (message.includes('public.budget_items') && message.includes('schema cache')) {
     return 'Budget items table is missing in Supabase. Run supabase migrations, then refresh.';
@@ -524,11 +555,11 @@ export function BudgetPage({ session }: BudgetPageProps) {
       }
 
       const delimiter = lines[0].includes('	') ? '	' : ',';
-      const headers = lines[0].split(delimiter).map((value) => value.trim());
+      const headers = parseDelimitedLine(lines[0], delimiter).map((value) => value.trim());
       const dataLines = lines.slice(1);
 
       const parsedRows: ImportRow[] = dataLines.map((line) => {
-        const columns = line.split(delimiter);
+        const columns = parseDelimitedLine(line, delimiter);
         const normalized = new Map<string, string | number>();
         headers.forEach((header, index) => normalized.set(normalizeHeader(header), columns[index]?.trim() ?? ''));
 
@@ -762,7 +793,7 @@ export function BudgetPage({ session }: BudgetPageProps) {
                 type="file"
               />
               <span className="inline-flex rounded-lg bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200">
-                {isImporting ? 'Importing…' : 'Import CSV/TSV'}
+                {isImporting ? 'Importing…' : 'Import CSV'}
               </span>
             </label>
             <Button onClick={() => setShowImportHelp(true)} type="button" variant="ghost">

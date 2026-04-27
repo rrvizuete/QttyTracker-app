@@ -36,7 +36,7 @@ interface ProgressRecord {
 
 interface ProgressEditor {
   id: string | null;
-  budget_item_id: string;
+  budget_item_id: string | null;
   itemQuery: string;
   descriptionQuery: string;
   reporting_date: string;
@@ -239,12 +239,11 @@ export function ProgressPage({ session }: ProgressPageProps) {
       return;
     }
 
-    const firstItem = budgetItems[0];
     setEditingRow({
       id: null,
-      budget_item_id: firstItem.id,
-      itemQuery: `${firstItem.code} — ${firstItem.description}`,
-      descriptionQuery: firstItem.description,
+      budget_item_id: null,
+      itemQuery: '',
+      descriptionQuery: '',
       reporting_date: new Date().toISOString().slice(0, 10),
       installed_quantity: '',
       percent_complete: '',
@@ -284,7 +283,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
       resolveItemFromQuery(editingRow.itemQuery) ??
       resolveItemFromQuery(editingRow.descriptionQuery) ??
       null;
-    const selectedItem = budgetItemLookup.get(editingRow.budget_item_id);
+    const selectedItem = editingRow.budget_item_id ? budgetItemLookup.get(editingRow.budget_item_id) : undefined;
     const selectedComposite = selectedItem ? `${selectedItem.code} — ${selectedItem.description}` : '';
     const budgetItemId = resolvedItem?.id ?? editingRow.budget_item_id;
     const userTypedValue = editingRow.itemQuery.trim() || editingRow.descriptionQuery.trim();
@@ -299,7 +298,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
       return;
     }
 
-    if (!budgetItemLookup.has(budgetItemId)) {
+    if (!budgetItemId || !budgetItemLookup.has(budgetItemId)) {
       setErrorMessage('Select a valid budget item or description from the suggestions before saving.');
       return;
     }
@@ -406,13 +405,13 @@ export function ProgressPage({ session }: ProgressPageProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex h-full min-h-0 flex-col gap-6">
       <section>
         <h1 className="text-2xl font-semibold text-slate-900">Progress Tracking</h1>
         <p className="mt-1 text-sm text-slate-500">Manage and update progress entries directly from the table.</p>
       </section>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <label className="flex min-w-64 flex-col gap-2 text-sm font-medium text-slate-700">
             <span>Project</span>
@@ -433,9 +432,9 @@ export function ProgressPage({ session }: ProgressPageProps) {
         {successMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{successMessage}</p> : null}
 
         {!isLoading ? (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-h-0 flex-1 overflow-auto">
             <table className="min-w-full text-left text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10 bg-white">
                 <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Date</th>
                   <th className="py-2 pr-3">
@@ -526,7 +525,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
                         ) : null}
                       </div>
                     </td>
-                    <td className="py-2 pr-3 text-slate-600">{budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—'}</td>
+                    <td className="py-2 pr-3 text-slate-600">{(editingRow.budget_item_id ? budgetItemLookup.get(editingRow.budget_item_id)?.uom : undefined) ?? '—'}</td>
                     <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} /></td>
                     <td className="py-2 pr-3"><input className="h-8 w-24 rounded-md border border-slate-300 px-2" max="100" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, percent_complete: e.target.value } : c))} step="0.01" type="number" value={editingRow.percent_complete} /></td>
                     <td className="py-2 pr-3"><input className="h-8 w-full rounded-md border border-slate-300 px-2" onChange={(e) => setEditingRow((c) => (c ? { ...c, remarks: e.target.value } : c))} value={editingRow.remarks} /></td>
@@ -610,7 +609,7 @@ export function ProgressPage({ session }: ProgressPageProps) {
                           </div>
                         ) : rowMeta.description}
                       </td>
-                      <td className="py-3 pr-3 text-slate-600">{isEditing ? budgetItemLookup.get(editingRow.budget_item_id)?.uom ?? '—' : rowMeta.uom}</td>
+                      <td className="py-3 pr-3 text-slate-600">{isEditing ? (editingRow.budget_item_id ? budgetItemLookup.get(editingRow.budget_item_id)?.uom : undefined) ?? '—' : rowMeta.uom}</td>
                       <td className="py-3 pr-3 text-slate-700">
                         {isEditing ? (
                           <input className="h-8 w-24 rounded-md border border-slate-300 px-2" min="0" onChange={(e) => setEditingRow((c) => (c ? { ...c, installed_quantity: e.target.value } : c))} step="0.001" type="number" value={editingRow.installed_quantity} />

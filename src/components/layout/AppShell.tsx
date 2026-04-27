@@ -18,7 +18,7 @@ export function AppShell({ children, userEmail, onSignOut, activeSection, onNavi
         <Sidebar activeSection={activeSection} onNavigate={onNavigate} />
         <div className="flex min-w-0 flex-1 flex-col">
           <TopHeader activeSection={activeSection} onSignOut={onSignOut} userEmail={userEmail} />
-          <main className="flex-1 p-6">{children}</main>
+          <main className="flex min-h-0 flex-1 flex-col p-6">{children}</main>
         </div>
       </div>
     </div>
