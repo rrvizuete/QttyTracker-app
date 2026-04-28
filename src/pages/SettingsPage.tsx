@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { RowActionsMenu } from '../components/ui/RowActionsMenu';
 import { supabase } from '../lib/supabase';
 
 interface SettingsPageProps {
@@ -253,6 +254,17 @@ export function SettingsPage({ session }: SettingsPageProps) {
     setSuccessMessage(`Unit ${unit.code} deleted successfully.`);
   }
 
+  function duplicateUnitToForm(unit: UnitRecord) {
+    setFormState({
+      code: `${unit.code}_COPY`.slice(0, 12),
+      label: unit.label,
+      sortOrder: String(unit.sort_order),
+      isActive: unit.is_active,
+    });
+    setErrorMessage(null);
+    setSuccessMessage('Unit duplicated into the add form. Update the code as needed, then click "Add Unit".');
+  }
+
   return (
     <div className="space-y-6">
       <section>
@@ -391,39 +403,34 @@ export function SettingsPage({ session }: SettingsPageProps) {
                           )}
                         </td>
                         <td className="px-3 py-2 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {isEditing ? (
-                              <>
-                                <Button disabled={savingCode === unit.code} onClick={handleSaveEdit} type="button" variant="secondary">
-                                  {savingCode === unit.code ? 'Saving…' : 'Save'}
-                                </Button>
-                                <Button onClick={() => setEditingUnit(null)} type="button" variant="ghost">
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                <Button
-                                  onClick={() =>
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <Button disabled={savingCode === unit.code} onClick={handleSaveEdit} type="button" variant="secondary">
+                                {savingCode === unit.code ? 'Saving…' : 'Save'}
+                              </Button>
+                              <Button onClick={() => setEditingUnit(null)} type="button" variant="ghost">
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'Copy', onClick: () => duplicateUnitToForm(unit) },
+                                {
+                                  label: 'Edit',
+                                  onClick: () =>
                                     setEditingUnit({
                                       originalCode: unit.code,
                                       code: unit.code,
                                       label: unit.label,
                                       sortOrder: String(unit.sort_order),
                                       isActive: unit.is_active,
-                                    })
-                                  }
-                                  type="button"
-                                  variant="ghost"
-                                >
-                                  Edit
-                                </Button>
-                                <Button disabled={deletingCode === unit.code} onClick={() => void handleDeleteUnit(unit)} type="button" variant="danger">
-                                  {deletingCode === unit.code ? 'Deleting…' : 'Delete'}
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                                    }),
+                                },
+                                { label: deletingCode === unit.code ? 'Deleting…' : 'Delete', onClick: () => void handleDeleteUnit(unit), disabled: deletingCode === unit.code, variant: 'danger' },
+                              ]}
+                            />
+                          )}
                         </td>
                       </tr>
                     );

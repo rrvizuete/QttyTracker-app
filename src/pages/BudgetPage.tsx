@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { RowActionsMenu } from '../components/ui/RowActionsMenu';
 import { supabase } from '../lib/supabase';
 
 interface BudgetPageProps {
@@ -51,6 +52,7 @@ interface EditorState {
   quantity: string;
   uom: string;
   rate: string;
+  duplicatedFromCode: string | null;
 }
 
 interface ImportRow {
@@ -233,6 +235,7 @@ function makeEditorState(params: {
   quantity?: string;
   uom?: string;
   rate?: string;
+  duplicatedFromCode?: string | null;
 }): EditorState {
   const {
     projectId,
@@ -246,6 +249,7 @@ function makeEditorState(params: {
     quantity = kind === 'section' ? '0' : '',
     uom = '',
     rate = kind === 'section' ? '0' : '',
+    duplicatedFromCode = null,
   } = params;
 
   return {
@@ -260,6 +264,7 @@ function makeEditorState(params: {
     quantity,
     uom,
     rate,
+    duplicatedFromCode,
   };
 }
 
@@ -446,6 +451,26 @@ export function BudgetPage({ session }: BudgetPageProps) {
     );
   }
 
+  function startDuplicate(item: BudgetItemRecord) {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setEditorState(
+      makeEditorState({
+        mode: 'create',
+        projectId: item.project_id,
+        kind: item.quantity === 0 && item.rate === 0 ? 'section' : 'position',
+        parentId: item.parent_id ?? '',
+        level: item.level,
+        code: item.code,
+        description: item.description,
+        quantity: String(item.quantity),
+        uom: item.uom,
+        rate: String(item.rate),
+        duplicatedFromCode: item.code,
+      }),
+    );
+  }
+
   async function saveEditor() {
     if (!supabase || !editorState) {
       return;
@@ -464,6 +489,15 @@ export function BudgetPage({ session }: BudgetPageProps) {
     if (editorState.projectId !== selectedProjectId) {
       setErrorMessage('This line belongs to a different project. Re-open it from the currently selected project before saving.');
       setEditorState(null);
+      return;
+    }
+
+    if (
+      editorState.mode === 'create' &&
+      editorState.duplicatedFromCode &&
+      editorState.code.trim().toLowerCase() === editorState.duplicatedFromCode.trim().toLowerCase()
+    ) {
+      setErrorMessage('To save a duplicated budget line, modify the code first.');
       return;
     }
 
@@ -913,10 +947,13 @@ export function BudgetPage({ session }: BudgetPageProps) {
                         <td className="py-3 pr-3 text-slate-700">{toNumber(item.rolledQuantity)}</td>
                         <td className="py-3 pr-3 font-semibold text-brand-600">{toCurrency(item.rolledValue)}</td>
                         <td className="py-3 whitespace-nowrap">
-                          <div className="flex flex-nowrap items-center gap-1">
-                            <Button className="shrink-0 px-2 py-1 text-xs" onClick={() => startEdit(item)} type="button" variant="ghost">Edit</Button>
-                            <Button className="shrink-0 px-2 py-1 text-xs" disabled={deletingItemId === item.id} onClick={() => handleDelete(item)} type="button" variant="danger">{deletingItemId === item.id ? 'Deleting…' : 'Delete'}</Button>
-                          </div>
+                          <RowActionsMenu
+                            actions={[
+                              { label: 'Copy', onClick: () => startDuplicate(item) },
+                              { label: 'Edit', onClick: () => startEdit(item) },
+                              { label: deletingItemId === item.id ? 'Deleting…' : 'Delete', onClick: () => void handleDelete(item), disabled: deletingItemId === item.id, variant: 'danger' },
+                            ]}
+                          />
                         </td>
                       </tr>
                     )}
