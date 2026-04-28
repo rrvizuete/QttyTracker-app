@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
+import { RowActionsMenu } from '../components/ui/RowActionsMenu';
 import { supabase } from '../lib/supabase';
 
 interface ProjectsPageProps {
@@ -225,6 +226,16 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
     setSuccessMessage('Project updated successfully.');
   }
 
+  function duplicateProjectToForm(project: ProjectRecord) {
+    setFormState({
+      name: `${project.name} (Copy)`,
+      description: project.description ?? '',
+      status: project.status ?? 'active',
+    });
+    setErrorMessage(null);
+    setSuccessMessage('Project duplicated into the create form. Review fields and click "Create Project".');
+  }
+
   return (
     <div className="space-y-6">
       <section>
@@ -344,25 +355,28 @@ export function ProjectsPage({ session }: ProjectsPageProps) {
                         </td>
                         <td className="py-3 pr-3 text-slate-600">{new Date(project.created_at).toLocaleDateString()}</td>
                         <td className="py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-1">
-                            {isEditing ? (
-                              <>
-                                <Button className="px-2 py-1 text-xs" disabled={savingProjectId === project.id} onClick={saveInlineProject} type="button">
-                                  {savingProjectId === project.id ? 'Saving…' : 'Save'}
-                                </Button>
-                                <Button className="px-2 py-1 text-xs" onClick={() => setEditingProject(null)} type="button" variant="ghost">
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : (
-                              <Button className="px-2 py-1 text-xs" onClick={() => setEditingProject({ id: project.id, name: project.name, description: project.description ?? '', status: project.status ?? 'active' })} type="button" variant="ghost">
-                                Edit
+                          {isEditing ? (
+                            <div className="flex items-center gap-1">
+                              <Button className="px-2 py-1 text-xs" disabled={savingProjectId === project.id} onClick={saveInlineProject} type="button">
+                                {savingProjectId === project.id ? 'Saving…' : 'Save'}
                               </Button>
-                            )}
-                            <Button className="px-2 py-1 text-xs" disabled={deletingProjectId === project.id} onClick={() => handleDeleteProject(project)} type="button" variant="danger">
-                              {deletingProjectId === project.id ? 'Deleting…' : 'Delete'}
-                            </Button>
-                          </div>
+                              <Button className="px-2 py-1 text-xs" onClick={() => setEditingProject(null)} type="button" variant="ghost">
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'Copy', onClick: () => duplicateProjectToForm(project) },
+                                {
+                                  label: 'Edit',
+                                  onClick: () =>
+                                    setEditingProject({ id: project.id, name: project.name, description: project.description ?? '', status: project.status ?? 'active' }),
+                                },
+                                { label: deletingProjectId === project.id ? 'Deleting…' : 'Delete', onClick: () => void handleDeleteProject(project), disabled: deletingProjectId === project.id, variant: 'danger' },
+                              ]}
+                            />
+                          )}
                         </td>
                       </tr>
                     );

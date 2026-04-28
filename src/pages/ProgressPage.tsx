@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
+import { RowActionsMenu } from '../components/ui/RowActionsMenu';
 import { supabase } from '../lib/supabase';
 
 interface ProgressPageProps {
@@ -391,6 +392,26 @@ export function ProgressPage({ session }: ProgressPageProps) {
     setSuccessMessage(null);
   }
 
+  function startDuplicateInline(row: ProgressRecord) {
+    const linked = budgetItemLookup.get(row.budget_item_id);
+    const code = row.budget_item?.[0]?.code ?? linked?.code ?? '';
+    const description = row.budget_item?.[0]?.description ?? linked?.description ?? '';
+
+    setEditingRow({
+      id: null,
+      budget_item_id: row.budget_item_id,
+      itemQuery: `${code} — ${description}`.trim(),
+      descriptionQuery: description,
+      reporting_date: row.reporting_date,
+      installed_quantity: String(row.installed_quantity),
+      percent_complete: row.percent_complete === null ? '' : String(row.percent_complete),
+      remarks: row.remarks ?? '',
+    });
+    setOpenPicker(null);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  }
+
   async function saveInline() {
     if (!supabase || !selectedProjectId || !editingRow) {
       return;
@@ -767,11 +788,14 @@ export function ProgressPage({ session }: ProgressPageProps) {
                               <Button className="px-2 py-1 text-xs" onClick={() => setEditingRow(null)} type="button" variant="ghost">Cancel</Button>
                             </>
                           ) : (
-                            <Button className="px-2 py-1 text-xs" onClick={() => startEditInline(row)} type="button" variant="ghost">Edit</Button>
+                            <RowActionsMenu
+                              actions={[
+                                { label: 'Copy', onClick: () => startDuplicateInline(row) },
+                                { label: 'Edit', onClick: () => startEditInline(row) },
+                                { label: deletingId === row.id ? 'Deleting…' : 'Delete', onClick: () => void handleDelete(row), disabled: deletingId === row.id, variant: 'danger' },
+                              ]}
+                            />
                           )}
-                          <Button className="px-2 py-1 text-xs" disabled={deletingId === row.id} onClick={() => handleDelete(row)} type="button" variant="danger">
-                            {deletingId === row.id ? 'Deleting…' : 'Delete'}
-                          </Button>
                         </div>
                       </td>
                     </tr>
